@@ -31,11 +31,15 @@ export default function ImageUploader() {
         .replace(/```/g, '')
         .trim();
 
+      console.log("🔎 Cleaned OpenAI result:", cleaned);
+
       const parsed = JSON.parse(cleaned);
+      console.log("✅ Parsed items:", parsed);
+
       setIdentifiedItems(parsed);
     } catch (err) {
       setError('Failed to analyse image');
-      console.error(err);
+      console.error("❌ Error parsing OpenAI result:", err);
     } finally {
       setLoading(false);
     }
