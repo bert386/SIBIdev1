@@ -26,7 +26,12 @@ export default function ImageUploader() {
       });
 
       const data = await res.json();
-      const parsed = JSON.parse(data.result);
+      const cleaned = data.result
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
+
+      const parsed = JSON.parse(cleaned);
       setIdentifiedItems(parsed);
     } catch (err) {
       setError('Failed to analyse image');
