@@ -62,6 +62,8 @@ Respond only in JSON format with an array of objects, each having 'name', 'forma
       const result = data.choices?.[0]?.message?.content || "[]";
 
       console.log("✅ OpenAI result received.");
+      console.log("🧠 Raw OpenAI text response:", result);
+
       res.status(200).json({ result });
     });
   } catch (err) {
