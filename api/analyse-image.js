@@ -1,5 +1,5 @@
-import { IncomingForm } from 'formidable';
-import fs from 'fs';
+const { IncomingForm } = require('formidable');
+const fs = require('fs');
 
 export const config = {
   api: {
@@ -7,7 +7,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   try {
     const form = new IncomingForm({ keepExtensions: true, multiples: false });
 
@@ -23,19 +23,19 @@ export default async function handler(req, res) {
 
       const base64Image = fs.readFileSync(imagePath, { encoding: 'base64' });
 
-      const prompt = \`You are an expert item evaluator. You work for people who buy and sell on eBay.
+      const prompt = `You are an expert item evaluator. You work for people who buy and sell on eBay.
 Your expertise is in analysing bulk lots of items, identifying them, and evaluating them.
 You will identify each item including its title, its format/type/category (e.g., DVD, Wii, Sony PlayStation, VHS, comic book), and its release date.
 You will return results in this format:
 "Full item name including release year and item format, for example: Mario Kart 8 (2009) WiiU"
-Respond only in JSON format with an array of objects, each having 'name', 'format', and 'year'.\`;
+Respond only in JSON format with an array of objects, each having 'name', 'format', and 'year'.`;
 
       console.log("📤 Sending to OpenAI...");
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': \`Bearer \${process.env.OPENAI_API_KEY}\`,
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -48,7 +48,7 @@ Respond only in JSON format with an array of objects, each having 'name', 'forma
                 {
                   type: 'image_url',
                   image_url: {
-                    url: \`data:image/jpeg;base64,\${base64Image}\`,
+                    url: `data:image/jpeg;base64,${base64Image}`,
                   },
                 },
               ],
@@ -68,4 +68,4 @@ Respond only in JSON format with an array of objects, each having 'name', 'forma
     console.error("❌ Handler exception:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
-}
+};
