@@ -47,7 +47,7 @@ export default function App() {
         value: `$${x.average.toFixed(2)} AUD`
       }));
 
-    setResults({ top3: top3 || [], results: all });
+    setResults({ top3: Array.isArray(top3) ? top3 : [], results: all });
     
   };
 
@@ -101,7 +101,7 @@ export default function App() {
                 <a href={x.url} target="_blank" rel="noreferrer">{x.title}</a> – ${x.price} AUD
               </li>
             ))}
-          </ul>
+          </ul></>)}
           <button onClick={() => setSelectedSold(null)}>Close</button>
         </div>
       )}
