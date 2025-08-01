@@ -53,7 +53,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>SIBI – Should I Buy It</h1>
+      <h1>SIBI – 🚨 LIVE PATCHED VERSION v2.0.1</h1>
       <input type="file" multiple onChange={handleUpload} />
       <p>Progress: {progress}%</p>
 
