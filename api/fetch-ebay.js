@@ -29,10 +29,8 @@ module.exports = async function handler(req, res) {
       const soldData = await soldRes.json();
       const activeData = await activeRes.json();
 
-      const prices = (soldData.itemSummaries || [])
-        .filter(x => x.price?.value && x.itemWebUrl)
-        .slice(0, 10)
-        .map(x => ({ price: parseFloat(x.price.value), link: x.itemWebUrl }));
+      const soldItems = (soldData.itemSummaries || []).filter(x => x.price?.value && x.itemWebUrl);
+      const prices = soldItems.slice(0, 10).map(x => ({ price: parseFloat(x.price.value), link: x.itemWebUrl }));
 
       const soldPrices = prices.map(p => p.price);
       const soldLinks = prices.map(p => p.link);
