@@ -29,8 +29,7 @@ export default function App() {
       body: JSON.stringify({ items }),
     });
     const ebayData = await ebayRes.json();
-    setProgress(100);
-    
+
     const all = ebayData.results.map(entry => {
       const filtered = entry.soldPrices.filter(p => typeof p.price === 'number');
       if (!filtered.length) return null;
@@ -39,25 +38,37 @@ export default function App() {
     });
 
     const top3 = [...all]
+      .filter(Boolean)
       .sort((a, b) => b.average - a.average)
       .slice(0, 3)
-      .filter(Boolean)
       .map(x => ({
         name: x.item,
         value: `$${x.average.toFixed(2)} AUD`
       }));
 
+    setProgress(100);
     setResults({ top3: Array.isArray(top3) ? top3 : [], results: all });
-    
   };
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>SIBI (v1.1.1)</h1>
+      <h1>SIBI – Should I Buy It</h1>
       <input type="file" multiple onChange={handleUpload} />
       <p>Progress: {progress}%</p>
+
       {results && (
         <>
+          {results.top3.length > 0 && (
+            <>
+              <h2>Top 3 Items 🔍</h2>
+              <ul>
+                {results.top3.map((item, idx) => (
+                  <li key={idx}>{item.name} – {item.value}</li>
+                ))}
+              </ul>
+            </>
+          )}
+
           <h2>All Items</h2>
           <table border="1" cellPadding="6">
             <thead>
@@ -68,23 +79,17 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {results.results.filter(Boolean).map((entry, idx) => {
-                const avg = (
-                  entry.soldPrices.reduce((sum, p) => sum + p.price, 0) /
-                  entry.soldPrices.length
-                ).toFixed(2);
-                return (
-                  <tr key={idx}>
-                    <td>{entry.item}</td>
-                    <td>${avg} AUD</td>
-                    <td>
-                      <button onClick={() => setSelectedSold(entry.soldPrices)}>
-                        View Last Solds
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {results.results.filter(Boolean).map((entry, idx) => (
+                <tr key={idx}>
+                  <td>{entry.item}</td>
+                  <td>${entry.average.toFixed(2)} AUD</td>
+                  <td>
+                    <button onClick={() => setSelectedSold(entry.soldPrices)}>
+                      View Last Solds
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </>
@@ -92,7 +97,8 @@ export default function App() {
 
       {selectedSold && (
         <div style={{
-          position: 'fixed', top: 50, left: '10%', right: '10%', background: 'white', border: '1px solid black', padding: 20, zIndex: 10
+          position: 'fixed', top: 50, left: '10%', right: '10%',
+          background: 'white', border: '1px solid black', padding: 20, zIndex: 10
         }}>
           <h3>Last 10 Sold Prices</h3>
           <ul>
@@ -101,7 +107,7 @@ export default function App() {
                 <a href={x.url} target="_blank" rel="noreferrer">{x.title}</a> – ${x.price} AUD
               </li>
             ))}
-          </ul></>)}
+          </ul>
           <button onClick={() => setSelectedSold(null)}>Close</button>
         </div>
       )}
