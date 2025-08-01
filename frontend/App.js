@@ -5,6 +5,7 @@ export default function App() {
   const [images, setImages] = useState([]);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState(null);
+  const [selectedSold, setSelectedSold] = useState(null);
 
   const handleUpload = async (e) => {
     const files = Array.from(e.target.files);
@@ -34,43 +35,57 @@ export default function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>SIBI (v1.1.0)</h1>
+      <h1>SIBI (v1.1.1)</h1>
       <input type="file" multiple onChange={handleUpload} />
       <p>Progress: {progress}%</p>
       {results && (
         <>
-          <h2>Top 3 Most Valuable Items</h2>
-          <ul>
-            {results.top3.map((item, idx) => (
-              <li key={idx}>{item.name} – {item.value}</li>
-            ))}
-          </ul>
           <h2>All Items</h2>
-          <table border="1">
+          <table border="1" cellPadding="6">
             <thead>
               <tr>
                 <th>Item</th>
-                <th>Value</th>
-                <th>Sold</th>
-                <th>Available</th>
-                <th>eBay</th>
+                <th>Sold Avg</th>
+                <th>Sold History</th>
               </tr>
             </thead>
             <tbody>
-              {results.items.map((item, idx) => (
-                <tr key={idx}>
-                  <td>{item.name}</td>
-                  <td>{item.value}</td>
-                  <td>{item.sold}</td>
-                  <td>{item.available}</td>
-                  <td><a href={item.link} target="_blank">View</a></td>
-                </tr>
-              ))}
+              {results.results.map((entry, idx) => {
+                const avg = (
+                  entry.soldPrices.reduce((sum, p) => sum + p.price, 0) /
+                  entry.soldPrices.length
+                ).toFixed(2);
+                return (
+                  <tr key={idx}>
+                    <td>{entry.item}</td>
+                    <td>${avg} AUD</td>
+                    <td>
+                      <button onClick={() => setSelectedSold(entry.soldPrices)}>
+                        View Last Solds
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          <h2>Summary</h2>
-          <p>{results.summary}</p>
         </>
+      )}
+
+      {selectedSold && (
+        <div style={{
+          position: 'fixed', top: 50, left: '10%', right: '10%', background: 'white', border: '1px solid black', padding: 20, zIndex: 10
+        }}>
+          <h3>Last 10 Sold Prices</h3>
+          <ul>
+            {selectedSold.map((x, i) => (
+              <li key={i}>
+                <a href={x.url} target="_blank" rel="noreferrer">{x.title}</a> – ${x.price} AUD
+              </li>
+            ))}
+          </ul>
+          <button onClick={() => setSelectedSold(null)}>Close</button>
+        </div>
       )}
     </div>
   );
