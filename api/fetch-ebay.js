@@ -20,30 +20,36 @@ module.exports = async function handler(req, res) {
 
     for (const item of items) {
       const query = encodeURIComponent(item.name);
-      const soldURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}&filter=sold_status:TRUE&limit=10&site_id=15`;
+      const soldURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}&filter=sold_status:TRUE`;
       const activeURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}`;
 
-      
-      const soldRes = await fetch(soldURL, {
-        headers: { Authorization: `Bearer ${access_token}` }
-      });
+      const soldRes = await fetch(soldURL, { headers: { Authorization: `Bearer ${access_token}` } });
+      const activeRes = await fetch(activeURL, { headers: { Authorization: `Bearer ${access_token}` } });
+
       const soldData = await soldRes.json();
+      const activeData = await activeRes.json();
 
-      const soldItems = (soldData.itemSummaries || []).map(item => ({
-        price: item.price?.value || 0,
-        url: item.itemWebUrl || ""
-      }));
+      const soldPrices = (soldData.itemSummaries || [])
+        .map(x => x.price?.value)
+        .filter(Boolean)
+        .slice(0, 10)
+        .map(parseFloat);
 
-      const prices = soldItems.map(i => parseFloat(i.price)).filter(p => !isNaN(p));
-      const average = prices.length ? (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2) : "NRS";
+      console.log(`eBay fetch for "${item.name}":`);
+      console.log("Sold Prices:", soldPrices);
+
+      const avgValue = soldPrices.length
+        ? `$${(soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length).toFixed(2)} AUD`
+        : "NRS";
 
       results.push({
         name: item.name,
-        prices,
-        links: soldItems.map(i => i.url),
-        average
+        value: avgValue,
+        sold: soldData.total || 0,
+        available: activeData.total || 0,
+        link: `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`,
+        soldPrices
       });
-    
     }
 
     const top3 = [...results]
