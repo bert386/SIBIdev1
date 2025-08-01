@@ -47,7 +47,7 @@ export default function App() {
         value: `$${x.average.toFixed(2)} AUD`
       }));
 
-    setResults({ top3, results: all });
+    setResults({ top3: top3 || [], results: all });
     
   };
 
