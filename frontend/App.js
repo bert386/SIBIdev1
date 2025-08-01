@@ -28,17 +28,18 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items }),
     });
-    const ebayData = await ebayRes.json();
+    const rawResults = await ebayRes.json();
 
-    const all = ebayData.results.map(entry => {
-      const filtered = entry.soldPrices.filter(p => typeof p.price === 'number');
-      if (!filtered.length) return null;
-      const avg = filtered.reduce((sum, p) => sum + p.price, 0) / filtered.length;
-      return { ...entry, soldPrices: filtered, average: avg };
-    });
+    const enriched = rawResults
+      .map(entry => {
+        const filtered = entry.soldPrices.filter(p => typeof p.price === 'number');
+        if (!filtered.length) return null;
+        const avg = filtered.reduce((sum, p) => sum + p.price, 0) / filtered.length;
+        return { ...entry, soldPrices: filtered, average: avg };
+      })
+      .filter(Boolean);
 
-    const top3 = [...all]
-      .filter(Boolean)
+    const top3 = [...enriched]
       .sort((a, b) => b.average - a.average)
       .slice(0, 3)
       .map(x => ({
@@ -47,7 +48,7 @@ export default function App() {
       }));
 
     setProgress(100);
-    setResults({ top3: Array.isArray(top3) ? top3 : [], results: all });
+    setResults({ top3, results: enriched });
   };
 
   return (
@@ -60,7 +61,7 @@ export default function App() {
         <>
           {results.top3.length > 0 && (
             <>
-              <h2>Top 3 Items 🔍</h2>
+              <h2>Top 3 Items ✅</h2>
               <ul>
                 {results.top3.map((item, idx) => (
                   <li key={idx}>{item.name} – {item.value}</li>
@@ -79,7 +80,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {results.results.filter(Boolean).map((entry, idx) => (
+              {results.results.map((entry, idx) => (
                 <tr key={idx}>
                   <td>{entry.item}</td>
                   <td>${entry.average.toFixed(2)} AUD</td>
