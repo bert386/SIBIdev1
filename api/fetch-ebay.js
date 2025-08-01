@@ -20,14 +20,14 @@ export default async function handler(req, res) {
 
     for (const item of items) {
       const query = encodeURIComponent(item.name);
-      const soldURL = \`https://api.ebay.com/buy/browse/v1/item_summary/search?q=\${query}&filter=conditionIds:{1000,3000,4000},sold_status:TRUE\`;
-      const activeURL = \`https://api.ebay.com/buy/browse/v1/item_summary/search?q=\${query}\`;
+      const soldURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}&filter=conditionIds:{1000,3000,4000},sold_status:TRUE`;
+      const activeURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}`;
 
       const soldRes = await fetch(soldURL, {
-        headers: { Authorization: \`Bearer \${access_token}\` }
+        headers: { Authorization: `Bearer ${access_token}` }
       });
       const activeRes = await fetch(activeURL, {
-        headers: { Authorization: \`Bearer \${access_token}\` }
+        headers: { Authorization: `Bearer ${access_token}` }
       });
 
       const soldData = await soldRes.json();
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
         value: avgValue,
         sold: soldData.total || 0,
         available: activeData.total || 0,
-        link: \`https://www.ebay.com.au/sch/i.html?_nkw=\${query}&LH_Sold=1&LH_Complete=1\`,
+        link: `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`,
       });
     }
 
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
       .sort((a, b) => parseFloat(b.value.replace("$", "")) - parseFloat(a.value.replace("$", "")));
 
     const top3 = sorted.slice(0, 3);
-    const summary = \`This lot contains \${results.length} items. Top item: \${top3[0]?.name || "N/A"}.\`;
+    const summary = `This lot contains ${results.length} items. Top item: ${top3[0]?.name || "N/A"}.`;
 
     res.status(200).json({ items: results, top3, summary });
   } catch (e) {
