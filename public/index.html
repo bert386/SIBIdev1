@@ -3,11 +3,81 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>SIBI App</title>
+  <title>SIBI Image Analysis</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    .progress { margin-top: 10px; height: 20px; background: #eee; width: 100%; border-radius: 4px; overflow: hidden; }
+    .progress-bar { height: 100%; background: #4caf50; width: 0%; transition: width 0.3s ease; }
+    table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+  </style>
 </head>
 <body>
-  <h1>SIBI App is Running</h1>
-  <p>This is a placeholder static frontend. The backend API is live and integrated with OpenAI and eBay.</p>
-  <p>Make API requests to <code>/api/analyse-image</code> and <code>/api/fetch-ebay</code></p>
+  <h1>SIBI – Should I Buy It</h1>
+  <input type="file" id="imageUpload" multiple accept="image/*" />
+  <button onclick="startAnalysis()">Start Analysis</button>
+
+  <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+  <div id="results"></div>
+
+  <script>
+    async function startAnalysis() {
+      const files = document.getElementById('imageUpload').files;
+      if (!files.length) {
+        alert("Please upload at least one image.");
+        return;
+      }
+
+      const progressBar = document.getElementById("progressBar");
+      progressBar.style.width = "10%";
+
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append('images', file);
+      }
+
+      let analyseRes;
+      try {
+        analyseRes = await fetch('/api/analyse-image', {
+          method: 'POST',
+          body: formData
+        });
+        progressBar.style.width = "40%";
+      } catch (err) {
+        alert("Image analysis failed");
+        return;
+      }
+
+      const items = await analyseRes.json();
+      progressBar.style.width = "60%";
+
+      const ebayRes = await fetch('/api/fetch-ebay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      });
+      const data = await ebayRes.json();
+      progressBar.style.width = "100%";
+
+      renderResults(data);
+    }
+
+    function renderResults(data) {
+      const div = document.getElementById("results");
+      let html = "<h2>Top 3 Most Valuable Items</h2><ul>";
+      for (const item of data.top3) {
+        html += `<li>${item.name} – ${item.value}</li>`;
+      }
+      html += "</ul>";
+
+      html += "<h2>All Items</h2><table><tr><th>Item</th><th>Value</th><th>Sold</th><th>Available</th><th>eBay</th></tr>";
+      for (const item of data.items) {
+        html += `<tr><td>${item.name}</td><td>${item.value}</td><td>${item.sold}</td><td>${item.available}</td><td><a href="${item.link}" target="_blank">View</a></td></tr>`;
+      }
+      html += "</table><h2>Summary</h2><p>" + data.summary + "</p>";
+      div.innerHTML = html;
+    }
+  </script>
 </body>
 </html>
