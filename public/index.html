@@ -14,7 +14,7 @@
   </style>
 </head>
 <body>
-  <h1>SIBI – ✅ FIXED VANILLA VERSION v2.0.2</h1>
+  <h1>SIBI – Should I Buy It</h1>
   <input type="file" id="imageUpload" multiple accept="image/*" />
   <button onclick="startAnalysis()">Start Analysis</button>
 
@@ -43,7 +43,6 @@
         body: JSON.stringify({ items })
       });
       const data = await ebayRes.json();
-      console.log("📦 Received from /fetch-ebay:", data);
       progressBar.style.width = "100%";
 
       renderResults(data);
@@ -51,17 +50,13 @@
 
     function renderResults(data) {
       const div = document.getElementById("results");
-      const items = data.items || [];
-      const top3 = [...items].sort((a, b) => b.value - a.value).slice(0, 3);
-
       let html = "<h2>Top 3 Most Valuable Items</h2><ul>";
-      for (const item of top3) html += `<li>${item.name} – $${item.value}</li>`;
+      for (const item of data.top3) html += `<li>${item.name} – ${item.value}</li>`;
       html += "</ul><h2>All Items</h2><table><tr><th>Item</th><th>Value</th><th>Sold</th><th>Available</th><th>eBay</th></tr>";
-      
-      items.forEach((item, i) => {
+      data.items.forEach((item, i) => {
         html += `<tr>
           <td>${item.name}</td>
-          <td><a href="#" onclick="showDetails(${i}); return false;">$${item.value}</a></td>
+          <td><a href="#" onclick="showDetails(${i}); return false;">${item.value}</a></td>
           <td>${item.sold}</td>
           <td>${item.available}</td>
           <td><a href="${item.link}" target="_blank">View</a></td>
@@ -70,7 +65,7 @@
       html += "</table><h2>Summary</h2><p>" + data.summary + "</p>";
       html += "<div id='detailBox' class='price-detail'></div>";
       div.innerHTML = html;
-      window._sibiData = items;
+      window._sibiData = data.items;
     }
 
     function showDetails(index) {

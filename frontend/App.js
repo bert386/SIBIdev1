@@ -5,7 +5,6 @@ export default function App() {
   const [images, setImages] = useState([]);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState(null);
-  const [selectedSold, setSelectedSold] = useState(null);
 
   const handleUpload = async (e) => {
     const files = Array.from(e.target.files);
@@ -28,89 +27,50 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items }),
     });
-    const rawResults = await ebayRes.json();
-
-    const enriched = rawResults
-      .map(entry => {
-        const filtered = entry.soldPrices.filter(p => typeof p.price === 'number');
-        if (!filtered.length) return null;
-        const avg = filtered.reduce((sum, p) => sum + p.price, 0) / filtered.length;
-        return { ...entry, soldPrices: filtered, average: avg };
-      })
-      .filter(Boolean);
-
-    const top3 = [...enriched]
-      .sort((a, b) => b.average - a.average)
-      .slice(0, 3)
-      .map(x => ({
-        name: x.item,
-        value: `$${x.average.toFixed(2)} AUD`
-      }));
-
+    const ebayData = await ebayRes.json();
     setProgress(100);
-    setResults({ top3, results: enriched });
+    setResults(ebayData);
   };
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>SIBI – 🚨 LIVE PATCHED VERSION v2.0.1</h1>
+      <h1>SIBI (v1.1.0)</h1>
       <input type="file" multiple onChange={handleUpload} />
       <p>Progress: {progress}%</p>
-
       {results && (
         <>
-          {results.top3.length > 0 && (
-            <>
-              <h2>Top 3 Items ✅</h2>
-              <ul>
-                {results.top3.map((item, idx) => (
-                  <li key={idx}>{item.name} – {item.value}</li>
-                ))}
-              </ul>
-            </>
-          )}
-
+          <h2>Top 3 Most Valuable Items</h2>
+          <ul>
+            {results.top3.map((item, idx) => (
+              <li key={idx}>{item.name} – {item.value}</li>
+            ))}
+          </ul>
           <h2>All Items</h2>
-          <table border="1" cellPadding="6">
+          <table border="1">
             <thead>
               <tr>
                 <th>Item</th>
-                <th>Sold Avg</th>
-                <th>Sold History</th>
+                <th>Value</th>
+                <th>Sold</th>
+                <th>Available</th>
+                <th>eBay</th>
               </tr>
             </thead>
             <tbody>
-              {results.results.map((entry, idx) => (
+              {results.items.map((item, idx) => (
                 <tr key={idx}>
-                  <td>{entry.item}</td>
-                  <td>${entry.average.toFixed(2)} AUD</td>
-                  <td>
-                    <button onClick={() => setSelectedSold(entry.soldPrices)}>
-                      View Last Solds
-                    </button>
-                  </td>
+                  <td>{item.name}</td>
+                  <td>{item.value}</td>
+                  <td>{item.sold}</td>
+                  <td>{item.available}</td>
+                  <td><a href={item.link} target="_blank">View</a></td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <h2>Summary</h2>
+          <p>{results.summary}</p>
         </>
-      )}
-
-      {selectedSold && (
-        <div style={{
-          position: 'fixed', top: 50, left: '10%', right: '10%',
-          background: 'white', border: '1px solid black', padding: 20, zIndex: 10
-        }}>
-          <h3>Last 10 Sold Prices</h3>
-          <ul>
-            {selectedSold.map((x, i) => (
-              <li key={i}>
-                <a href={x.url} target="_blank" rel="noreferrer">{x.title}</a> – ${x.price} AUD
-              </li>
-            ))}
-          </ul>
-          <button onClick={() => setSelectedSold(null)}>Close</button>
-        </div>
       )}
     </div>
   );
