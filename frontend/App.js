@@ -32,16 +32,16 @@ export default function App() {
     setProgress(100);
     
     const all = ebayData.results.map(entry => {
-      const avg = (
-        entry.soldPrices.reduce((sum, p) => sum + p.price, 0) /
-        entry.soldPrices.length
-      );
-      return { ...entry, average: avg };
+      const filtered = entry.soldPrices.filter(p => typeof p.price === 'number');
+      if (!filtered.length) return null;
+      const avg = filtered.reduce((sum, p) => sum + p.price, 0) / filtered.length;
+      return { ...entry, soldPrices: filtered, average: avg };
     });
 
     const top3 = [...all]
       .sort((a, b) => b.average - a.average)
       .slice(0, 3)
+      .filter(Boolean)
       .map(x => ({
         name: x.item,
         value: `$${x.average.toFixed(2)} AUD`
@@ -68,7 +68,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {results.results.map((entry, idx) => {
+              {results.results.filter(Boolean).map((entry, idx) => {
                 const avg = (
                   entry.soldPrices.reduce((sum, p) => sum + p.price, 0) /
                   entry.soldPrices.length
