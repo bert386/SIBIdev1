@@ -29,17 +29,16 @@ module.exports = async function handler(req, res) {
       const soldData = await soldRes.json();
       const activeData = await activeRes.json();
 
-      const soldPrices = (soldData.itemSummaries || [])
-        .map(x => x.price?.value)
-        .filter(Boolean)
-        .slice(0, 10)
-        .map(parseFloat);
+      const soldItems = (soldData.itemSummaries || []).slice(0, 10).map(x => ({
+        price: x.price?.value,
+        url: x.itemWebUrl
+      })).filter(x => x.price && x.url);
 
       console.log(`eBay fetch for "${item.name}":`);
-      console.log("Sold Prices:", soldPrices);
+      console.log("Sold Prices:", soldItems.map(i => i.price));
 
-      const avgValue = soldPrices.length
-        ? `$${(soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length).toFixed(2)} AUD`
+      const avgValue = soldItems.length
+        ? `$${(soldItems.reduce((a, b) => a + parseFloat(b.price), 0) / soldItems.length).toFixed(2)} AUD`
         : "NRS";
 
       results.push({
@@ -48,7 +47,7 @@ module.exports = async function handler(req, res) {
         sold: soldData.total || 0,
         available: activeData.total || 0,
         link: `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`,
-        soldPrices
+        soldItems
       });
     }
 
