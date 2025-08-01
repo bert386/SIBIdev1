@@ -35,7 +35,9 @@ module.exports.default = async function handler(req, res) {
           max_tokens: 800
         });
 
-        const parsed = JSON.parse(response.choices[0].message.content);
+        const raw = response.choices[0].message.content.trim();
+        const cleaned = raw.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+        const parsed = JSON.parse(cleaned);
         results.push(...parsed);
       }
 
