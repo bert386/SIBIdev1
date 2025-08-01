@@ -1,12 +1,11 @@
 
 const formidable = require("formidable");
 const fs = require("fs");
-const { Configuration, OpenAIApi } = require("openai");
+const OpenAI = require("openai");
 
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
-const openai = new OpenAIApi(configuration);
 
 module.exports.config = {
   api: {
@@ -31,7 +30,7 @@ module.exports.default = async function handler(req, res) {
           "format/type/category (e.g. DVD, Wii, VHS, comic), and release year. Return results as JSON " +
           "with entries like: {\"name\": \"Mario Kart 8 (2009) Wii\"}";
 
-        const response = await openai.createChatCompletion({
+        const response = await openai.chat.completions.create({
           model: "gpt-4-vision-preview",
           messages: [
             {
@@ -48,7 +47,7 @@ module.exports.default = async function handler(req, res) {
           max_tokens: 800,
         });
 
-        const text = response.data.choices[0].message.content;
+        const text = response.choices[0].message.content;
         const parsed = JSON.parse(text);
         results.push(...parsed);
       }
