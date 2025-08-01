@@ -8,12 +8,12 @@ module.exports = async function handler(req, res) {
 
   for (const item of items) {
     const query = encodeURIComponent(item.name);
-    const url = `https://svcs.ebay.com.au/services/search/FindingService/v1` +
+    const url = `https://svcs.ebay.com/services/search/FindingService/v1` +
                 `?OPERATION-NAME=findCompletedItems` +
                 `&SERVICE-VERSION=1.0.0` +
                 `&SECURITY-APPNAME=${appId}` +
                 `&RESPONSE-DATA-FORMAT=JSON` +
-                `&REST-PAYLOAD` +
+                `&REST-PAYLOAD&GLOBAL-ID=EBAY-AU` +
                 `&keywords=${query}` +
                 `&itemFilter(0).name=SoldItemsOnly` +
                 `&itemFilter(0).value=true` +
