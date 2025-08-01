@@ -20,38 +20,47 @@ module.exports = async function handler(req, res) {
 
     for (const item of items) {
       const query = encodeURIComponent(item.name);
-      const soldURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}&filter=sold_status:TRUE&limit=10`;
+      const soldURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}&filter=sold_status:TRUE`;
       const activeURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}`;
 
-      
-    const soldRes = await fetch(soldURL, {
-      headers: {
-        Authorization: `Bearer ${access_token}`,
-        "X-EBAY-C-MARKETPLACE-ID": "EBAY_AU"
-      }
-    });
-    const soldData = await soldRes.json();
+      const soldRes = await fetch(soldURL, { headers: { Authorization: `Bearer ${access_token}` } });
+      const activeRes = await fetch(activeURL, { headers: { Authorization: `Bearer ${access_token}` } });
 
-    const soldItems = (soldData.itemSummaries || []).map(item => ({
-      price: item.price?.value || 0,
-      url: item.itemWebUrl || ""
-    }));
+      const soldData = await soldRes.json();
+      const activeData = await activeRes.json();
 
-    const prices = soldItems.map(i => parseFloat(i.price)).filter(p => !isNaN(p));
-    const average = prices.length ? (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2) : "NRS";
+      const soldPrices = (soldData.itemSummaries || [])
+        .map(x => x.price?.value)
+        .filter(Boolean)
+        .slice(0, 10)
+        .map(parseFloat);
 
-    results.push({
-      name: item.name,
-      prices,
-      links: soldItems.map(i => i.url),
-      average
-    });
-    
+      console.log(`eBay fetch for "${item.name}":`);
+      console.log("Sold Prices:", soldPrices);
+
+      const avgValue = soldPrices.length
+        ? `$${(soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length).toFixed(2)} AUD`
+        : "NRS";
+
+      results.push({
+        name: item.name,
+        value: avgValue,
+        sold: soldData.total || 0,
+        available: activeData.total || 0,
+        link: `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`,
+        soldPrices
+      });
     }
 
     const top3 = [...results]
       .filter(i => i.value !== "NRS")
-      .sort((a, b) => parseFloat(b.value.replace("$", "")) - parseFloat(a.value.replace("$", "")))
+      .sort((a, b) => {
+  const getNumericValue = val => {
+    if (!val || val === "NRS") return 0;
+    return parseFloat(val.toString().replace("$", ""));
+  };
+  return getNumericValue(b.value) - getNumericValue(a.value);
+})
       .slice(0, 3);
 
     const summary = `This lot contains ${results.length} items. Most valuable: ${top3[0]?.name || "N/A"}`;
