@@ -67,7 +67,7 @@
       html += "</ul><h2>All Items</h2><table><tr><th>Item</th><th>Value</th><th>Sold</th><th>Available</th><th>eBay</th></tr>";
       data.items.forEach((item, i) => {
         html += `<tr>
-          <td>${item.name}</td>
+          <td>${String(item.name)}</td>
           <td><a href="#" onclick="showDetails(${i}); return false;">${item.value}</a></td>
           <td>${item.sold}</td>
           <td>${item.available}</td>
