@@ -26,7 +26,10 @@ module.exports.default = async function handler(req, res) {
         const imageData = fs.readFileSync(file.filepath);
         const base64Image = imageData.toString("base64");
 
-        const prompt = \`You are an expert item evaluator, you work for people who buy and sell on eBay. You specialise in analysing bulk lots of items. Identify each item including its title, format/type/category (e.g. DVD, Wii, VHS, comic), and release year. Return results as JSON with entries like: {"name": "Mario Kart 8 (2009) Wii"}\`;
+        const prompt = "You are an expert item evaluator, you work for people who buy and sell on eBay. " +
+          "You specialise in analysing bulk lots of items. Identify each item including its title, " +
+          "format/type/category (e.g. DVD, Wii, VHS, comic), and release year. Return results as JSON " +
+          "with entries like: {\"name\": \"Mario Kart 8 (2009) Wii\"}";
 
         const response = await openai.createChatCompletion({
           model: "gpt-4-vision-preview",
@@ -37,7 +40,7 @@ module.exports.default = async function handler(req, res) {
                 { type: "text", text: prompt },
                 {
                   type: "image_url",
-                  image_url: { url: \`data:image/jpeg;base64,\${base64Image}\` }
+                  image_url: { url: "data:image/jpeg;base64," + base64Image }
                 }
               ]
             }
