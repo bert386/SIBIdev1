@@ -30,7 +30,25 @@ export default function App() {
     });
     const ebayData = await ebayRes.json();
     setProgress(100);
-    setResults(ebayData);
+    
+    const all = ebayData.results.map(entry => {
+      const avg = (
+        entry.soldPrices.reduce((sum, p) => sum + p.price, 0) /
+        entry.soldPrices.length
+      );
+      return { ...entry, average: avg };
+    });
+
+    const top3 = [...all]
+      .sort((a, b) => b.average - a.average)
+      .slice(0, 3)
+      .map(x => ({
+        name: x.item,
+        value: `$${x.average.toFixed(2)} AUD`
+      }));
+
+    setResults({ top3, results: all });
+    
   };
 
   return (
