@@ -23,8 +23,13 @@ module.exports = async function handler(req, res) {
       const soldURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}&filter=sold_status:TRUE`;
       const activeURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}`;
 
-      const soldRes = await fetch(soldURL, { headers: { Authorization: `Bearer ${access_token}` } });
-      const activeRes = await fetch(activeURL, { headers: { Authorization: `Bearer ${access_token}` } });
+      const commonHeaders = {
+        Authorization: `Bearer ${access_token}`,
+        "X-EBAY-C-MARKETPLACE-ID": "EBAY_AU"
+      };
+
+      const soldRes = await fetch(soldURL, { headers: commonHeaders });
+      const activeRes = await fetch(activeURL, { headers: commonHeaders });
 
       const soldData = await soldRes.json();
       const activeData = await activeRes.json();
