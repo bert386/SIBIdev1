@@ -78,7 +78,7 @@
 
       const avg = item.soldPrices.reduce((a, b) => a + b, 0) / item.soldPrices.length;
       box.innerHTML = "<strong>" + item.name + "</strong><br>Last 10 Sold Prices:<ul>" +
-        item.soldPrices.map(p => `<li>$${p.toFixed(2)}</li>`).join("") +
+      item.soldPrices.map((p, i) => `<li><a href="${item.soldLinks?.[i] || "#"}" target="_blank">$${p.toFixed(2)}</a></li>`).join("") +
         `</ul><strong>Average:</strong> $${avg.toFixed(2)} AUD`;
     }
   </script>
