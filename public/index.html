@@ -43,6 +43,7 @@
         body: JSON.stringify({ items })
       });
       const data = await ebayRes.json();
+      console.log("📦 Received from /fetch-ebay:", data);
       progressBar.style.width = "100%";
 
       renderResults(data);
