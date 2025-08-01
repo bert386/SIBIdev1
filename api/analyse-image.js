@@ -31,7 +31,7 @@ module.exports.default = async function handler(req, res) {
           "with entries like: {\"name\": \"Mario Kart 8 (2009) Wii\"}";
 
         const response = await openai.chat.completions.create({
-          model: "gpt-4-vision-preview",
+          model: "gpt-4o",
           messages: [
             {
               role: "user",
