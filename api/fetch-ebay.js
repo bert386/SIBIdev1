@@ -29,14 +29,17 @@ module.exports = async function handler(req, res) {
       const soldData = await soldRes.json();
       const activeData = await activeRes.json();
 
-      const soldPrices = (soldData.itemSummaries || [])
-        .map(x => x.price?.value)
-        .filter(Boolean)
+      const prices = (soldData.itemSummaries || [])
+        .filter(x => x.price?.value && x.itemWebUrl)
         .slice(0, 10)
-        .map(parseFloat);
+        .map(x => ({ price: parseFloat(x.price.value), link: x.itemWebUrl }));
 
-      console.log(`eBay fetch for "${item.name}":`);
-      console.log("Sold Prices:", soldPrices);
+      const soldPrices = prices.map(p => p.price);
+      const soldLinks = prices.map(p => p.link);
+
+      console.info(`eBay fetch for "${item.name}":`);
+      console.info("Sold Prices:", soldPrices);
+      console.info("Sold Links:", soldLinks);
 
       const avgValue = soldPrices.length
         ? `$${(soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length).toFixed(2)} AUD`
@@ -48,7 +51,8 @@ module.exports = async function handler(req, res) {
         sold: soldData.total || 0,
         available: activeData.total || 0,
         link: `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`,
-        soldPrices
+        soldPrices,
+        soldLinks
       });
     }
 
