@@ -24,6 +24,7 @@ module.exports = async function handler(req, res) {
 
       console.log("🔍 Fetching sold listings for:", decodeURIComponent(query));
       console.log("🔗 Sold URL:", soldURL);
+
       const soldRes = await fetch(soldURL, {
         headers: {
           Authorization: `Bearer ${access_token}`,
@@ -33,6 +34,7 @@ module.exports = async function handler(req, res) {
 
       const soldData = await soldRes.json();
       const soldItems = (soldData.itemSummaries || []).slice(0, 10);
+
       console.log("📦 Found", soldItems.length, "sold items.");
       soldItems.forEach(x => console.log("✔", x.title, "-", x.price?.value, x.itemWebUrl));
 
@@ -48,7 +50,7 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    res.status(200).json({ results });
+    res.status(200).json(results);
   } catch (error) {
     console.error("eBay fetch error:", error);
     res.status(500).json({ error: error.message });
