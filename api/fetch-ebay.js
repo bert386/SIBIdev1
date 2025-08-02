@@ -1,7 +1,7 @@
 const cheerio = require("cheerio");
 const axios = require("axios");
 
-exports.handler = async (req, res) => {
+module.exports = async (req, res) => {
   try {
     const items = req.body.items;
     const results = [];
