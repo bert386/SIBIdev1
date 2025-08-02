@@ -41,7 +41,9 @@ module.exports.default = async function handler(req, res) {
         results.push(...parsed);
       }
 
-      res.status(200).json({ items: results.flat() });
+      const items = results.flat().map(item => ({ ...item, value: 0 }));
+const top3 = items.slice(0, 3);
+res.status(200).json({ items, top3 });
     } catch (e) {
       console.error("Error in analyse-image:", e);
       res.status(500).json({ error: "Failed to analyse images." });
