@@ -18,6 +18,7 @@ module.exports = async (req, res) => {
       const soldLinks = [];
 
       $("li.s-item").each((i, el) => {
+        if (soldPrices.length >= 10) return false;
         const priceText = $(el).find(".s-item__price").first().text().replace(/[^\d.]/g, "");
         const href = $(el).find(".s-item__link").attr("href");
         if (priceText && href) {
