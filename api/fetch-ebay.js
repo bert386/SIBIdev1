@@ -1,48 +1,30 @@
+const cheerio = require("cheerio");
+const axios = require("axios");
 
-module.exports = async function handler(req, res) {
-  const items = req.body.items;
-  const clientId = process.env.EBAY_CLIENT_ID;
-  const clientSecret = process.env.EBAY_CLIENT_SECRET;
-  const creds = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-
+exports.handler = async (req, res) => {
   try {
-    const tokenRes = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${creds}`,
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: "grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope"
-    });
-
-    const { access_token } = await tokenRes.json();
+    const items = req.body.items;
     const results = [];
 
     for (const item of items) {
-      const query = encodeURIComponent(item.name);
-      const soldURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}&filter=sold_status:TRUE`;
-      const activeURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}`;
+      const itemName = item.name;
+      const query = encodeURIComponent(itemName);
+      const ebayUrl = `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`;
 
-      const commonHeaders = {
-        Authorization: `Bearer ${access_token}`,
-        "X-EBAY-C-MARKETPLACE-ID": "EBAY_AU"
-      };
+      const response = await axios.get(ebayUrl);
+      const $ = cheerio.load(response.data);
 
-      const soldRes = await fetch(soldURL, { headers: commonHeaders });
-      const activeRes = await fetch(activeURL, { headers: commonHeaders });
+      const soldPrices = [];
+      const soldLinks = [];
 
-      const soldData = await soldRes.json();
-      const activeData = await activeRes.json();
-
-      const soldItems = (soldData.itemSummaries || []).filter(x => x.price?.value && x.itemWebUrl);
-      const prices = soldItems.slice(0, 10).map(x => ({ price: parseFloat(x.price.value), link: x.itemWebUrl }));
-
-      const soldPrices = prices.map(p => p.price);
-      const soldLinks = prices.map(p => p.link);
-
-      console.info(`eBay fetch for "${item.name}":`);
-      console.info("Sold Prices:", soldPrices);
-      console.info("Sold Links:", soldLinks);
+      $("li.s-item").each((i, el) => {
+        const priceText = $(el).find(".s-item__price").first().text().replace(/[^\d.]/g, "");
+        const href = $(el).find(".s-item__link").attr("href");
+        if (priceText && href) {
+          soldPrices.push(parseFloat(priceText));
+          soldLinks.push(href);
+        }
+      });
 
       const avgValue = soldPrices.length
         ? `$${(soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length).toFixed(2)} AUD`
@@ -51,9 +33,9 @@ module.exports = async function handler(req, res) {
       results.push({
         name: item.name,
         value: avgValue,
-        sold: soldData.total || 0,
-        available: activeData.total || 0,
-        link: `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`,
+        sold: soldPrices.length,
+        available: 0,
+        link: ebayUrl,
         soldPrices,
         soldLinks
       });
