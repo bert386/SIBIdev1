@@ -6,6 +6,10 @@ module.exports = async function handler(req, res) {
   const items = req.body.items;
   const results = [];
 
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: "Invalid items format" });
+  }
+
   for (const item of items) {
     const query = encodeURIComponent(item);
     const url = `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`;
