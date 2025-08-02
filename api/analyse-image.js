@@ -18,7 +18,7 @@ module.exports.default = async function handler(req, res) {
         const base64Image = imageData.toString("base64");
 
         const completion = await openai.chat.completions.create({
-          model: "gpt-4-vision-preview",
+          model: "gpt-4o",
           messages: [
             {
               role: "system",
