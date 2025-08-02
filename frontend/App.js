@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 export default function App() {
@@ -12,40 +11,38 @@ export default function App() {
     setProgress(10);
 
     const formData = new FormData();
-    files.forEach((file, idx) => formData.append(`images`, file));
-    setProgress(30);
+    files.forEach((file) => formData.append('images', file));
 
     const analyseRes = await fetch('/api/analyse-image', {
       method: 'POST',
-      body: formData,
+      body: formData
     });
-    const items = await analyseRes.json();
-    setProgress(60);
 
+    const analyseData = await analyseRes.json();
     const ebayRes = await fetch('/api/fetch-ebay', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items: analyseData.items })
     });
+
     const ebayData = await ebayRes.json();
+    setResults(ebayData.results);
     setProgress(100);
-    setResults(ebayData);
   };
 
+  const totalValue = results?.reduce((sum, item) =>
+    typeof item.value === 'number' ? sum + item.value : sum, 0
+  ).toFixed(2);
+
   return (
-    <div style={{ padding: 20 }}>
-      <h1>SIBI (v1.1.0)</h1>
+    <div>
+      <h1>SIBI – Should I Buy It</h1>
       <input type="file" multiple onChange={handleUpload} />
-      <p>Progress: {progress}%</p>
+      <progress value={progress} max="100" />
+
       {results && (
-        <>
-          <h2>Top 3 Most Valuable Items</h2>
-          <ul>
-            {results.top3.map((item, idx) => (
-              <li key={idx}>{item.name} – {item.value}</li>
-            ))}
-          </ul>
-          <h2>All Items</h2>
+        <div>
+          <h2>Total Lot Value: ${totalValue} AUD</h2>
           <table border="1">
             <thead>
               <tr>
@@ -57,20 +54,18 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {results.items.map((item, idx) => (
+              {results.map((item, idx) => (
                 <tr key={idx}>
                   <td>{item.name}</td>
-                  <td>{item.value}</td>
-                  <td>{item.sold}</td>
-                  <td>{item.available}</td>
-                  <td><a href={item.link} target="_blank">View</a></td>
+                  <td>{typeof item.value === 'number' ? `$${item.value} AUD` : item.value}</td>
+                  <td>{item.soldCount}</td>
+                  <td>{item.availableCount}</td>
+                  <td><a href={item.searchUrl} target="_blank" rel="noreferrer">View</a></td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <h2>Summary</h2>
-          <p>{results.summary}</p>
-        </>
+        </div>
       )}
     </div>
   );
