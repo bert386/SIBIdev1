@@ -41,9 +41,11 @@ module.exports.default = async function handler(req, res) {
         results.push(...parsed);
       }
 
-      res.status(200).json(results);
+      res.status(200).json({ items: results.flat() });
     } catch (e) {
       console.error("Error in analyse-image:", e);
       res.status(500).json({ error: "Failed to analyse images." });
     }
+}
+    });
 }
