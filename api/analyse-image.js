@@ -46,6 +46,5 @@ module.exports.default = async function handler(req, res) {
       console.error("Error in analyse-image:", e);
       res.status(500).json({ error: "Failed to analyse images." });
     }
-}
     });
 }
