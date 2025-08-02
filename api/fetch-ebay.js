@@ -1,80 +1,74 @@
 
-const fetch = require("node-fetch");
-const cheerio = require("cheerio");
-
 module.exports = async function handler(req, res) {
   const items = req.body.items;
-  const results = [];
+  const clientId = process.env.EBAY_CLIENT_ID;
+  const clientSecret = process.env.EBAY_CLIENT_SECRET;
+  const creds = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
-  if (!Array.isArray(items)) {
-    return res.status(400).json({ error: "Invalid items format" });
-  }
+  try {
+    const tokenRes = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${creds}`,
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: "grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope"
+    });
 
-  for (const item of items) {
-    const query = encodeURIComponent(item);
-    const url = `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`;
+    const { access_token } = await tokenRes.json();
+    const results = [];
 
-    try {
-      console.log("eBay fetch for", item);
-      const response = await fetch(url);
-      const html = await response.text();
-      const $ = cheerio.load(html);
+    for (const item of items) {
+      const query = encodeURIComponent(item.name);
+      const soldURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}&filter=sold_status:TRUE`;
+      const activeURL = `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${query}`;
 
-      const soldPrices = [];
-      const soldLinks = [];
+      const commonHeaders = {
+        Authorization: `Bearer ${access_token}`,
+        "X-EBAY-C-MARKETPLACE-ID": "EBAY_AU"
+      };
 
-      $("li.s-item").each((i, el) => {
-        const priceText = $(el).find(".s-item__price").text().replace(/[^\d\.]/g, "");
-        const price = parseFloat(priceText);
-        const link = $(el).find("a.s-item__link").attr("href");
+      const soldRes = await fetch(soldURL, { headers: commonHeaders });
+      const activeRes = await fetch(activeURL, { headers: commonHeaders });
 
-        if (!isNaN(price)) soldPrices.push(price);
-        if (link) soldLinks.push(link);
-      });
+      const soldData = await soldRes.json();
+      const activeData = await activeRes.json();
 
-      console.log("Sold Prices:", soldPrices);
-      console.log("Sold Links:", soldLinks);
+      const soldItems = (soldData.itemSummaries || []).filter(x => x.price?.value && x.itemWebUrl);
+      const prices = soldItems.slice(0, 10).map(x => ({ price: parseFloat(x.price.value), link: x.itemWebUrl }));
 
-      const avg =
-        soldPrices.length > 0
-          ? parseFloat((soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length).toFixed(2))
-          : "NRS";
+      const soldPrices = prices.map(p => p.price);
+      const soldLinks = prices.map(p => p.link);
+
+      console.info(`eBay fetch for "${item.name}":`);
+      console.info("Sold Prices:", soldPrices);
+      console.info("Sold Links:", soldLinks);
+
+      const avgValue = soldPrices.length
+        ? `$${(soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length).toFixed(2)} AUD`
+        : "NRS";
 
       results.push({
-        name: item,
-        value: avg,
-        sold: soldPrices.length,
-        available: soldPrices.length, // approximate
-        soldPrices: soldPrices.slice(0, 10),
-        soldLinks: soldLinks.slice(0, 10),
-        link: url
-      });
-    } catch (err) {
-      console.error("eBay scrape failed for:", item, err);
-      results.push({
-        name: item,
-        value: "ERR",
-        sold: 0,
-        available: 0,
-        soldPrices: [],
-        soldLinks: [],
-        link: url
+        name: item.name,
+        value: avgValue,
+        sold: soldData.total || 0,
+        available: activeData.total || 0,
+        link: `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`,
+        soldPrices,
+        soldLinks
       });
     }
+
+    const top3 = [...results]
+      .filter(i => i.value !== "NRS")
+      .sort((a, b) => parseFloat(b.value.replace("$", "")) - parseFloat(a.value.replace("$", "")))
+      .slice(0, 3);
+
+    const summary = `This lot contains ${results.length} items. Most valuable: ${top3[0]?.name || "N/A"}`;
+
+    res.status(200).json({ items: results, top3, summary });
+  } catch (e) {
+    console.error("Error in fetch-ebay:", e);
+    res.status(500).json({ error: "eBay fetch failed" });
   }
-
-  const sorted = results
-    .filter(r => typeof r.value === "number")
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 3);
-
-  const summary = `This lot contains ${results.length} items. Most valuable: ${
-    sorted[0]?.name || "N/A"
-  }`;
-
-  res.status(200).json({
-    top3: sorted,
-    items: results,
-    summary
-  });
 };
