@@ -1,50 +1,62 @@
 
-const formidable = require("formidable");
-const fs = require("fs");
-const OpenAI = require("openai");
+import OpenAI from "openai";
+import formidable from "formidable";
+import fs from "fs";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
-module.exports.config = { api: { bodyParser: false } };
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-module.exports.default = async function handler(req, res) {
-  const form = new formidable.IncomingForm({ multiples: true });
-  form.parse(req, async (err, fields, files) => {
-    try {
-      const imageFiles = Array.isArray(files.images) ? files.images : [files.images];
-      const results = [];
+export default async function handler(req, res) {
+  try {
+    const form = new formidable.IncomingForm({ keepExtensions: true });
 
-      for (let file of imageFiles) {
-        const imageData = fs.readFileSync(file.filepath);
-        const base64Image = imageData.toString("base64");
-
-        const prompt = "You are an expert item evaluator, you work for people who buy and sell on eBay. " +
-          "You specialise in analysing bulk lots of items. Identify each item including its title, " +
-          "format/type/category (e.g. DVD, Wii, VHS, comic), and release year. Return results as JSON " +
-          "with entries like: {\"name\": \"Mario Kart 8 (2009) WiiU\"}";
-
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [{
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: "data:image/jpeg;base64," + base64Image } }
-            ]
-          }],
-          max_tokens: 800
-        });
-
-        const raw = response.choices[0].message.content.trim();
-        const cleaned = raw.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-        const parsed = JSON.parse(cleaned);
-        results.push(...parsed);
+    form.parse(req, async (err, fields, files) => {
+      if (err) {
+        console.error("Form parsing error:", err);
+        return res.status(500).json({ error: "Form parsing failed" });
       }
 
-      res.status(200).json(results);
-    } catch (e) {
-      console.error("Error in analyse-image:", e);
-      res.status(500).json({ error: "Failed to analyse images." });
-    }
-  });
-};
+      const image = files.images[0] || files.images;
+      const imageData = fs.readFileSync(image.filepath);
+
+      const gptResponse = await openai.chat.completions.create({
+        model: "gpt-4-vision-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `You are helping identify items in a photo of a bulk lot for resale purposes. Return a JSON array of up to 12 items. Each object should include title, format (e.g., DVD, game, book), and year if visible. Be concise.`,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  detail: "low",
+                  image: `data:image/jpeg;base64,${imageData.toString("base64")}`,
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 1000,
+      });
+
+      const textResponse = gptResponse.choices[0].message.content;
+      const jsonMatch = textResponse.match(/\[.*\]/s);
+      const parsedItems = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+
+      res.status(200).json({ items: parsedItems });
+    });
+  } catch (error) {
+    console.error("Image analysis failed:", error);
+    res.status(500).json({ error: "Image analysis failed" });
+  }
+}

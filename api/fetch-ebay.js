@@ -1,57 +1,61 @@
-const cheerio = require("cheerio");
-const axios = require("axios");
 
-module.exports = async (req, res) => {
+import axios from "axios";
+import * as cheerio from "cheerio";
+
+export default async function handler(req, res) {
   try {
-    const items = req.body.items;
+    const { items } = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: "Invalid items array" });
+    }
+
     const results = [];
 
     for (const item of items) {
-      const itemName = item.name;
-      const query = encodeURIComponent(itemName);
-      const ebayUrl = `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`;
+      const query = encodeURIComponent(item);
+      const url = `https://www.ebay.com.au/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`;
 
-      const response = await axios.get(ebayUrl);
-      const $ = cheerio.load(response.data);
+      const { data } = await axios.get(url);
+      const $ = cheerio.load(data);
 
-      const soldPrices = [];
-      const soldLinks = [];
-
+      const soldItems = [];
       $("li.s-item").each((i, el) => {
-        if (soldPrices.length >= 10) return false;
+        if (i >= 10) return false; // Only get 10 most recent
+        const title = $(el).find(".s-item__title").text();
         const priceText = $(el).find(".s-item__price").first().text().replace(/[^\d.]/g, "");
-        const href = $(el).find(".s-item__link").attr("href");
-        if (priceText && href) {
-          soldPrices.push(parseFloat(priceText));
-          soldLinks.push(href);
+        const price = parseFloat(priceText);
+        const link = $(el).find("a.s-item__link").attr("href");
+
+        if (!isNaN(price) && link) {
+          soldItems.push({ title, price, link });
         }
       });
 
-      const avgValue = soldPrices.length
-        ? `$${(soldPrices.reduce((a, b) => a + b, 0) / soldPrices.length).toFixed(2)} AUD`
-        : "NRS";
+      if (soldItems.length === 0) {
+        results.push({
+          item,
+          average: "NRS",
+          sold: 0,
+          available: 0,
+          soldLinks: [],
+        });
+      } else {
+        const prices = soldItems.map(x => x.price);
+        const average = (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2);
 
-      results.push({
-        name: item.name,
-        value: avgValue,
-        sold: soldPrices.length,
-        available: 0,
-        link: ebayUrl,
-        soldPrices,
-        soldLinks
-      });
+        results.push({
+          item,
+          average: `$${average}`,
+          sold: soldItems.length,
+          available: 0,
+          soldLinks: soldItems.map(x => x.link),
+        });
+      }
     }
 
-    const top3 = [...results]
-      .filter(i => i.value !== "NRS")
-      .sort((a, b) => parseFloat(b.value.replace("$", "")) - parseFloat(a.value.replace("$", "")))
-      .slice(0, 3);
-
-    const summary = `This lot contains ${results.length} items. Most valuable: ${top3[0]?.name || "N/A"}`;
-
-    res.status(200).json({ items: results, top3, summary });
-  } catch (e) {
-    console.error("Error in fetch-ebay:", e);
-    res.status(500).json({ error: "eBay fetch failed" });
+    res.status(200).json({ results });
+  } catch (err) {
+    console.error("Error in fetch-ebay:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
-};
+}
