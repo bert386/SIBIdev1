@@ -1,4 +1,4 @@
-import { IncomingForm } from 'formidable';
+import formidable from 'formidable';
 import fs from 'fs';
 import OpenAI from 'openai';
 
@@ -11,7 +11,7 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  const form = new IncomingForm({ multiples: true });
+  const form = new formidable.IncomingForm({ multiples: true });
   form.parse(req, async (err, fields, files) => {
     if (err) {
       console.error('Form parse error:', err);
@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
       try {
         const response = await openai.chat.completions.create({
-          model: "gpt-4-vision-preview",
+          model: "gpt-4-vision",
           messages: [
             {
               role: "user",
