@@ -13,19 +13,7 @@ export default async function handler(req, res) {
       }
     });
 
-    
-    if (!response || !response.data) {
-      console.error("Empty or invalid response from eBay");
-      return res.status(500).json({ error: "Empty or invalid response from eBay" });
-    }
-    let $;
-    try {
-      $ = cheerio.load(response.data);
-    } catch (loadErr) {
-      console.error("Cheerio load error:", loadErr);
-      return res.status(500).json({ error: "Failed to load HTML with Cheerio" });
-    }
-    
+    const $ = cheerio.load(response.data);
     const items = [];
     $('li.s-item').each((i, el) => {
       const title = $(el).find('.s-item__title').text().trim();

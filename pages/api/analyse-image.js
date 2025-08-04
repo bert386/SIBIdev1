@@ -1,4 +1,4 @@
-import formidable from 'formidable';
+import { IncomingForm } from 'formidable';
 import fs from 'fs';
 import OpenAI from 'openai';
 
@@ -11,7 +11,7 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  const form = new formidable.IncomingForm({ multiples: true });
+  const form = new IncomingForm({ multiples: true });
   form.parse(req, async (err, fields, files) => {
     if (err) {
       console.error('Form parse error:', err);
