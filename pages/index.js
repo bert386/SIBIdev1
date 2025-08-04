@@ -1,3 +1,4 @@
+console.log("index.js loaded");
 import React, { useState } from "react";
 import ImageUpload from "../components/ImageUpload";
 import ResultsTable from "../components/ResultsTable";
