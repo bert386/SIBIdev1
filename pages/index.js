@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import ImageUpload from "./components/ImageUpload";
-import ResultsTable from "./components/ResultsTable";
+import ImageUpload from "../components/ImageUpload";
+import ResultsTable from "../components/ResultsTable";
 
 export default function Home() {
   const [results, setResults] = useState([]);
