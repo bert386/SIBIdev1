@@ -1,8 +1,8 @@
-
-import formidable from 'formidable';
+import { IncomingForm } from 'formidable';
 import fs from 'fs';
-import path from 'path';
-import { OpenAI } from 'openai';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const config = {
   api: {
@@ -10,57 +10,44 @@ export const config = {
   },
 };
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-async function handler(req, res) {
-  const form = formidable({ multiples: false });
-
+export default async function handler(req, res) {
+  const form = new IncomingForm({ multiples: true });
   form.parse(req, async (err, fields, files) => {
     if (err) {
       console.error('Form parse error:', err);
-      res.status(500).json({ error: 'Form parsing failed' });
-      return;
+      return res.status(500).json({ error: 'Error parsing form data' });
     }
 
-    const imageFile = files.image;
-    if (!imageFile || Array.isArray(imageFile)) {
-      res.status(400).json({ error: 'No image uploaded' });
-      return;
+    const images = Array.isArray(files.images) ? files.images : [files.images];
+
+    const results = [];
+    for (const img of images) {
+      const buffer = fs.readFileSync(img.filepath);
+      const base64Image = buffer.toString("base64");
+
+      try {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "List the items in this image. For each, give name, category (e.g. DVD, game, toy), platform (if applicable), and release year if known." },
+                { type: "image_url", image_url: { url: `data:${img.mimetype};base64,${base64Image}` } }
+              ],
+            },
+          ],
+          max_tokens: 1000,
+        });
+
+        const content = response.choices[0].message.content;
+        results.push({ filename: img.originalFilename, raw: content });
+      } catch (e) {
+        console.error("OpenAI error:", e.message);
+        results.push({ filename: img.originalFilename, error: e.message });
+      }
     }
 
-    const imageData = fs.readFileSync(imageFile.filepath);
-
-    try {
-      console.log("📤 Sending to OpenAI...");
-      const visionResponse = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'List all items in this photo and identify each with title, type (game, dvd, book, etc.), platform if applicable, and year if visible.' },
-              {
-                type: 'image_url',
-                image_url: {
-                  mime_type: imageFile.mimetype,
-                  data: imageData.toString('base64'),
-                },
-              },
-            ],
-          },
-        ],
-        max_tokens: 1000,
-      });
-
-      console.log("✅ OpenAI result received.");
-      res.status(200).json({ result: visionResponse.choices[0].message.content });
-    } catch (error) {
-      console.error('OpenAI error:', error.message);
-      res.status(500).json({ error: 'OpenAI call failed' });
-    }
+    res.status(200).json({ results });
   });
 }
-
-export default handler;
