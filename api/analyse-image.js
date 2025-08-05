@@ -55,7 +55,7 @@ export default async function handler(req, res) {
               content: [
                 {
                   type: "text",
-                  text: "List the items in this image as JSON. Each item must include: title, platform (e.g. PC, PS2, Xbox), year (if visible), category (e.g. game, dvd), and a generated search field like 'Farming Simulator 2014 PC Game'. Return ONLY valid JSON: [{ title, platform, year, category, search }]"
+                  text: "List the items in this image as JSON. Each item must include: title, platform (e.g. PC, PS2, Xbox), year (most likely release year as a number, even if not visible — use general knowledge), category (e.g. game, dvd), and a generated search field like 'Farming Simulator 2014 PC Game'. Return ONLY valid JSON: [{ title, platform, year, category, search }]"
                 },
                 {
                   type: "image_url",
