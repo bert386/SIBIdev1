@@ -1,12 +1,12 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./App.css";
 
 function App() {
   const [image, setImage] = useState(null);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [values, setValues] = useState({}); // stores pricing per item
+  const [values, setValues] = useState({});
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -32,17 +32,28 @@ function App() {
 
       const data = await response.json();
       console.log("🧠 Raw OpenAI response:", data);
-      console.log("🧠 Vision response:", data);
       setResults(data.items || []);
+    } catch (err) {
+      console.error("❌ Error:", err);
+    }
 
-      // Fetch pricing using for...of
-      for (let idx = 0; idx < data.length; idx++) {
-        const item = data[idx];
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    const fetchPricing = async () => {
+      if (!results.length) return;
+
+      console.log("🔁 Starting pricing loop for", results.length, "items");
+
+      for (let idx = 0; idx < results.length; idx++) {
+        const item = results[idx];
         const query = `${item.title} ${item.platform || ""} ${item.category || ""} ${item.year || ""}`.trim();
         const search = encodeURIComponent(query);
+
         try {
           console.log(`📡 Fetching /api/fetch-ebay?search=${search}`);
-        const res = await fetch(`/api/fetch-ebay?search=${search}`);
+          const res = await fetch(`/api/fetch-ebay?search=${search}`);
           const json = await res.json();
           console.log(`💰 ${item.title} – $${json.avg} from ${json.solds.length} solds`);
           setValues((prev) => ({ ...prev, [idx]: json.avg }));
@@ -51,12 +62,10 @@ function App() {
           setValues((prev) => ({ ...prev, [idx]: "N/A" }));
         }
       }
-    } catch (err) {
-      console.error("❌ Error:", err);
-    }
+    };
 
-    setLoading(false);
-  };
+    fetchPricing();
+  }, [results]);
 
   return (
     <div className="App">
@@ -70,11 +79,11 @@ function App() {
         <table>
           <thead>
             <tr>
-              <th>Item</th>
+              <th>Title</th>
               <th>Platform</th>
               <th>Year</th>
               <th>Category</th>
-              <th>Value</th>
+              <th>Value (AUD)</th>
             </tr>
           </thead>
           <tbody>
