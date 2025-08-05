@@ -80,6 +80,17 @@ export default async function handler(req, res) {
       let items = [];
       try {
         items = JSON.parse(content);
+// Rebuild search string to include title, platform, category, and year
+      items = items.map(item => {
+        const yearSuffix = item.year ? ` ${item.year}` : '';
+        const platform = item.platform || '';
+        const category = item.category || '';
+        const search = `${item.title} ${platform} ${category}${yearSuffix}`.trim();
+        return {
+          ...item,
+          search
+        };
+      });
         console.log("✅ Parsed items:", items);
       } catch (parseErr) {
         console.error("❌ Failed to parse JSON:", parseErr);
