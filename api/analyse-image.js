@@ -1,4 +1,4 @@
-import formidable from 'formidable';
+import { IncomingForm } from 'formidable';
 import fs from 'fs';
 
 export const config = {
@@ -9,33 +9,39 @@ export const config = {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Only POST requests allowed' });
+    return res.writeHead(405).end(JSON.stringify({ message: 'Only POST allowed' }));
   }
 
-  const form = new formidable.IncomingForm({ multiples: false });
+  try {
+    const form = new IncomingForm({ multiples: false });
 
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      console.error("❌ Error parsing form:", err);
-      return res.status(500).json({ message: "Form parsing failed" });
-    }
+    form.parse(req, async (err, fields, files) => {
+      if (err) {
+        console.error("❌ Error parsing form:", err);
+        res.writeHead(500).end(JSON.stringify({ message: "Form parsing failed" }));
+        return;
+      }
 
-    const imageFile = files.file;
-    if (!imageFile) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
+      const imageFile = files.file?.[0];
+      if (!imageFile) {
+        return res.writeHead(400).end(JSON.stringify({ message: "No file uploaded" }));
+      }
 
-    const filePath = imageFile[0].filepath;
-    const fileBuffer = fs.readFileSync(filePath);
+      const filePath = imageFile.filepath;
+      const fileBuffer = fs.readFileSync(filePath);
 
-    // Simulated GPT-4 Vision API call
-    const fakeResponse = [
-      { title: "Grand Theft Auto V", category: "Video Game" },
-      { title: "Finding Nemo DVD", category: "DVD" },
-      { title: "Hot Wheels Redline", category: "Toy" }
-    ];
+      const fakeResponse = [
+        { title: "Grand Theft Auto V", category: "Video Game" },
+        { title: "Finding Nemo DVD", category: "DVD" },
+        { title: "Hot Wheels Redline", category: "Toy" }
+      ];
 
-    console.log("✅ Simulated OpenAI Vision result:", fakeResponse);
-    return res.status(200).json({ items: fakeResponse });
-  });
+      console.log("✅ Simulated OpenAI Vision result:", fakeResponse);
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ items: fakeResponse }));
+    });
+  } catch (e) {
+    console.error("❌ Critical API error:", e);
+    res.writeHead(500).end(JSON.stringify({ message: "Internal server error" }));
+  }
 }
