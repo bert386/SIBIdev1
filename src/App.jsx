@@ -66,7 +66,7 @@ export default function App() {
   return (
     <div style={{ padding: 20 }}>
       <h1>SIBI – Should I Buy It</h1>
-      <p>Version: v1.4.2</p>
+      <p>Version: v1.4.2 (HTML Scraping Manual Trigger)</p>
       <input type="file" accept="image/*" onChange={e => setFile(e.target.files[0])} />
       <button onClick={handleUpload} disabled={loading || !file} style={{ marginLeft: 10 }}>
         Start Analysis
