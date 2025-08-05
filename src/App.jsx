@@ -31,6 +31,7 @@ function App() {
       });
 
       const data = await response.json();
+      console.log("🧠 Raw OpenAI response:", data);
       console.log("🧠 Vision response:", data);
       setResults(data.items || []);
 
