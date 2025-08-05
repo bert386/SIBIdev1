@@ -1,11 +1,14 @@
 import { IncomingForm } from 'formidable';
 import fs from 'fs';
+import fetch from 'node-fetch';
 
 export const config = {
   api: {
     bodyParser: false,
   },
 };
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -18,8 +21,7 @@ export default async function handler(req, res) {
     form.parse(req, async (err, fields, files) => {
       if (err) {
         console.error("❌ Error parsing form:", err);
-        res.writeHead(500).end(JSON.stringify({ message: "Form parsing failed" }));
-        return;
+        return res.writeHead(500).end(JSON.stringify({ message: "Form parsing failed" }));
       }
 
       const imageFile = files.file?.[0];
@@ -28,17 +30,61 @@ export default async function handler(req, res) {
       }
 
       const filePath = imageFile.filepath;
-      const fileBuffer = fs.readFileSync(filePath);
+      const imageBuffer = fs.readFileSync(filePath);
+      const base64Image = imageBuffer.toString('base64');
 
-      const fakeResponse = [
-        { title: "Grand Theft Auto V", category: "Video Game" },
-        { title: "Finding Nemo DVD", category: "DVD" },
-        { title: "Hot Wheels Redline", category: "Toy" }
-      ];
+      if (!OPENAI_API_KEY) {
+        return res.writeHead(500).end(JSON.stringify({ message: "Missing OpenAI API key" }));
+      }
 
-      console.log("✅ Simulated OpenAI Vision result:", fakeResponse);
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: "You are a helpful assistant that extracts a list of individual items from an image and returns structured data.",
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "List the items you see in this image as JSON. Each item should include a 'title' and 'category' (e.g., game, dvd, toy, book). Return only an array of objects like: [{ title: '...', category: '...' }]",
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:image/jpeg;base64,${base64Image}`,
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 1000,
+        }),
+      });
+
+      const json = await response.json();
+
+      const content = json.choices?.[0]?.message?.content || "";
+      console.log("🧠 Raw OpenAI response:", content);
+
+      let items = [];
+      try {
+        items = JSON.parse(content);
+        console.log("✅ Parsed items:", items);
+      } catch (parseErr) {
+        console.error("❌ Failed to parse JSON:", parseErr);
+      }
+
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ items: fakeResponse }));
+      res.end(JSON.stringify({ items }));
     });
   } catch (e) {
     console.error("❌ Critical API error:", e);
