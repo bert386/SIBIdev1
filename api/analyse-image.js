@@ -18,18 +18,7 @@ export default async function handler(req, res) {
   try {
     const form = new IncomingForm({ multiples: false });
 
-    
-    console.log("🟡 Parsing incoming form...");
     form.parse(req, async (err, fields, files) => {
-        if (err) {
-            console.error("❌ Form parsing error:", err);
-            return res.status(400).json({ error: "Form parsing failed", details: err });
-        }
-        if (!files || !files.image) {
-            console.error("❌ No image file found in the form data.");
-            return res.status(400).json({ error: "No image file uploaded" });
-        }
-    
       if (err) {
         console.error("❌ Error parsing form:", err);
         return res.writeHead(500).end(JSON.stringify({ message: "Form parsing failed" }));
