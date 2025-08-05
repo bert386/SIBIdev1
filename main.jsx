@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 
 function App() {
     const [image, setImage] = useState(null);
-    const [version] = useState("v1.0.0");
+    const [version] = useState("v1.0.4");
 
     const handleImageChange = (e) => {
         if (e.target.files && e.target.files[0]) {
