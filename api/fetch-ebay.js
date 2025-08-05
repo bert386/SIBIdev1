@@ -8,6 +8,7 @@ export default async function handler(req, res) {
   }
 
   const { search, platform } = req.body;
+  console.log("🔍 [eBay Search]:", search);
   const encoded = encodeURIComponent(search);
   const url = `https://www.ebay.com.au/sch/i.html?_nkw=${encoded}&_sop=13&LH_Sold=1&LH_Complete=1`;
 
@@ -35,6 +36,9 @@ export default async function handler(req, res) {
     });
 
     console.log("✅ Scraped items:", items.length);
+    if (items.length === 0) {
+      console.log("⚠️ No sold listings found for:", url);
+    }
 
     const average = items.length > 0
       ? Math.round(items.reduce((sum, item) => sum + item.price, 0) / items.length)
