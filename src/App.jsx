@@ -5,6 +5,7 @@ export default function App() {
   const [file, setFile] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingPrices, setFetchingPrices] = useState(false);
 
   const handleUpload = async () => {
     if (!file) return;
@@ -20,34 +21,13 @@ export default function App() {
       });
 
       const data = await res.json();
-      const enriched = [];
+      const enriched = data.items.map(item => ({
+        ...item,
+        value: '—',
+        solds: ''
+      }));
 
-      for (const item of data.items) {
-        enriched.push({ ...item, value: 'Getting Pricing...', solds: '' });
-        setItems([...enriched]);
-
-        try {
-          console.log('🔄 Fetching eBay pricing for:', item.search);
-          const ebayRes = await fetch('/api/fetch-ebay', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ search: item.search }),
-          });
-
-          const ebayData = await ebayRes.json();
-          console.log('📦 eBay Response:', ebayData);
-
-          const idx = enriched.findIndex(i => i.search === item.search);
-          enriched[idx].value = ebayData.average ? `$${ebayData.average} AUD` : 'N/A';
-          enriched[idx].solds = `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(item.search)}&_sop=13&LH_Sold=1&LH_Complete=1`;
-          setItems([...enriched]);
-        } catch (scrapeErr) {
-          console.error('❌ Failed to fetch eBay data:', scrapeErr);
-          const idx = enriched.findIndex(i => i.search === item.search);
-          enriched[idx].value = 'Scrape failed';
-          setItems([...enriched]);
-        }
-      }
+      setItems(enriched);
     } catch (err) {
       console.error('❌ Error:', err);
     }
@@ -55,18 +35,51 @@ export default function App() {
     setLoading(false);
   };
 
+  const handleFetchPrices = async () => {
+    setFetchingPrices(true);
+    const enriched = [...items];
+
+    for (const item of enriched) {
+      try {
+        console.log('🔄 Fetching eBay pricing for:', item.search);
+        const ebayRes = await fetch('/api/fetch-ebay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ search: item.search }),
+        });
+
+        const ebayData = await ebayRes.json();
+        console.log('📦 eBay Response:', ebayData);
+
+        item.value = ebayData.average ? `$${ebayData.average} AUD` : 'N/A';
+        item.solds = `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(item.search)}&_sop=13&LH_Sold=1&LH_Complete=1`;
+      } catch (scrapeErr) {
+        console.error('❌ Failed to fetch eBay data:', scrapeErr);
+        item.value = 'Scrape failed';
+      }
+    }
+
+    setItems(enriched);
+    setFetchingPrices(false);
+  };
+
   return (
     <div style={{ padding: 20 }}>
       <h1>SIBI – Should I Buy It</h1>
-      <p>Version: v1.4.0</p>
+      <p>Version: v1.4.2</p>
       <input type="file" accept="image/*" onChange={e => setFile(e.target.files[0])} />
       <button onClick={handleUpload} disabled={loading || !file} style={{ marginLeft: 10 }}>
         Start Analysis
       </button>
 
-      {loading && <p>🔄 Analysing image and fetching pricing...</p>}
-
+      {loading && <p>🔄 Analysing image...</p>}
       {items.length > 0 && !loading && <p>✅ Analysis complete</p>}
+
+      {items.length > 0 && !loading && (
+        <button onClick={handleFetchPrices} disabled={fetchingPrices} style={{ marginTop: 10 }}>
+          {fetchingPrices ? 'Fetching Prices…' : 'Fetch eBay Prices'}
+        </button>
+      )}
 
       {items.length > 0 && (
         <table border="1" cellPadding="6" style={{ marginTop: 20 }}>
