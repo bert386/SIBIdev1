@@ -1,95 +1,60 @@
-import { IncomingForm } from 'formidable';
-import fs from 'fs';
-import fetch from 'node-fetch';
+const formidable = require("formidable");
+const fs = require("fs");
+const { OpenAI } = require("openai");
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+const openai = new OpenAI();
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.writeHead(405).end(JSON.stringify({ message: 'Only POST allowed' }));
+module.exports = async (req, res) => {
+  if (req.method !== "POST") {
+    return res.status(405).send("Method not allowed");
   }
 
-  try {
-    const form = new IncomingForm({ multiples: false });
+  const form = formidable({ multiples: false });
 
-    form.parse(req, async (err, fields, files) => {
-      if (err) {
-        console.error("❌ Error parsing form:", err);
-        return res.writeHead(500).end(JSON.stringify({ message: "Form parsing failed" }));
-      }
+  form.parse(req, async (err, fields, files) => {
+    if (err) {
+      console.error("❌ Formidable error:", err);
+      return res.status(500).json({ error: "Form parsing failed" });
+    }
 
-      const imageFile = files.file?.[0];
-      if (!imageFile) {
-        return res.writeHead(400).end(JSON.stringify({ message: "No file uploaded" }));
-      }
+    const imageFile = files.image?.[0] || files.image;
 
-      const filePath = imageFile.filepath;
-      const imageBuffer = fs.readFileSync(filePath);
-      const base64Image = imageBuffer.toString('base64');
+    if (!imageFile) {
+      return res.status(400).json({ error: "No image uploaded" });
+    }
 
-      if (!OPENAI_API_KEY) {
-        return res.writeHead(500).end(JSON.stringify({ message: "Missing OpenAI API key" }));
-      }
+    const imageData = fs.readFileSync(imageFile.filepath);
+    const base64Image = imageData.toString("base64");
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "system",
-              content: "You are a helpful assistant that extracts a structured list of items from an image."
-            },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "List the items in this image as JSON. Each item must include: title, platform (e.g. PC, PS2, Xbox), year (most likely release year as a number, even if not visible — use general knowledge), category (e.g. game, dvd), and a generated search field like 'Farming Simulator 2014 PC Game'. Return ONLY valid JSON: [{ title, platform, year, category, search }]"
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:image/jpeg;base64,${base64Image}`
-                  }
-                }
-              ]
-            }
-          ],
-          max_tokens: 1000,
-        }),
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are an assistant extracting item info from images."
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Identify each item in the image. Return a JSON array with title, platform, year, category, and a search string combining them (e.g. 'Halo 3 Xbox 360 2007 Game')." },
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
+            ]
+          }
+        ],
+        max_tokens: 1000
       });
 
-      const json = await response.json();
-      let content = json.choices?.[0]?.message?.content || "";
-      console.log("🧠 Raw OpenAI response:", content);
+      const raw = completion.choices?.[0]?.message?.content || "[]";
+      console.log("🧠 Raw OpenAI response:", raw);
 
-      // Remove markdown wrapping if present
-      content = content.replace(/^```json\s*/i, "").replace(/```\s*$/, "");
+      const items = JSON.parse(raw);
+      console.log("✅ Parsed items:", items);
 
-      let items = [];
-      try {
-        items = JSON.parse(content);
-        console.log("✅ Parsed items:", items);
-      } catch (parseErr) {
-        console.error("❌ Failed to parse JSON:", parseErr);
-      }
-
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ items }));
-    });
-  } catch (e) {
-    console.error("❌ Critical API error:", e);
-    res.writeHead(500).end(JSON.stringify({ message: "Internal server error" }));
-  }
-}
+      return res.status(200).json({ items });
+    } catch (err) {
+      console.error("❌ OpenAI or JSON parse error:", err);
+      return res.status(500).json({ error: "AI analysis failed" });
+    }
+  });
+};
