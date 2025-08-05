@@ -1,19 +1,22 @@
 {
-  "name": "sibi-app",
-  "version": "1.3.2",
+  "name": "sibi-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "vercel-build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "formidable": "^2.1.1",
-    "openai": "^4.22.1",
+    "formidable": "^3.5.2",
+    "node-fetch": "^2.6.9",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.0.0"
   },
   "devDependencies": {
-    "vite": "^4.5.0"
+    "vite": "^4.5.0",
+    "@vitejs/plugin-react": "^4.0.0"
   }
 }
