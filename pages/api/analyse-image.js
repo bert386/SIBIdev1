@@ -1,1 +1,0 @@
-// analyse-image API route logic
