@@ -1,17 +1,14 @@
-SIBI v1.0.1 Deployment Instructions (Vercel)
+SIBI v1.0.3 Deployment Instructions (Vercel)
 
-This project is structured as:
-- /frontend → React app using Vite
-- /api → Serverless functions (Node.js)
-- /vercel.json → Build instructions for Vercel
+This project is now flattened to Vercel's preferred structure:
+- /api          → Vercel Serverless Functions
+- /src          → All frontend files at root
+- /dist         → Vite output folder (auto generated on build)
 
 To deploy:
 1. Push this repo to GitHub.
 2. Import into Vercel.
-3. Vercel will detect the build using vercel.json and:
-   - Run `vite build` in /frontend
-   - Deploy backend from /api
+3. Vercel will detect Vite + build frontend to /dist.
+4. Backend will be deployed from /api.
 
-Frontend will be built into /frontend/dist and routed correctly.
-
-Ensure your OpenAI keys and future env vars go into Vercel project settings.
+You will now get a working live frontend by default.
