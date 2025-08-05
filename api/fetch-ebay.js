@@ -15,6 +15,18 @@ export default async function handler(req, res) {
   const results = [];
 
   for (const item of items) {
+    if (!item || typeof item.search !== 'string' || item.search.trim() === '') {
+      console.warn("⚠️ Invalid item or missing search string:", item);
+      results.push({
+        title: item?.title || 'Unknown',
+        search: item?.search || '',
+        error: 'Missing or invalid search string',
+        average: 0,
+        solds: []
+      });
+      continue;
+    }
+
     const encoded = encodeURIComponent(item.search);
     const url = `https://www.ebay.com.au/sch/i.html?_nkw=${encoded}&_sop=13&LH_Sold=1&LH_Complete=1`;
 
