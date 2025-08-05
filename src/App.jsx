@@ -32,7 +32,7 @@ function App() {
 
       const data = await response.json();
       console.log("🧠 Vision response:", data);
-      setResults(data);
+      setResults(data.items || []);
 
       // Fetch pricing using for...of
       for (let idx = 0; idx < data.length; idx++) {
