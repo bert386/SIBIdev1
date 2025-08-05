@@ -1,0 +1,1 @@
+export default function App() { return <div>SIBI v1.3.5</div>; }
