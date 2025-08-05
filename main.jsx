@@ -4,8 +4,9 @@ import ReactDOM from 'react-dom/client';
 function App() {
     const [image, setImage] = useState(null);
     const [file, setFile] = useState(null);
-    const [version] = useState("v1.0.5");
+    const [version] = useState("v1.0.9");
     const [progress, setProgress] = useState("Upload not yet submitted");
+    const [items, setItems] = useState([]);
 
     const handleImageChange = (e) => {
         if (e.target.files && e.target.files[0]) {
@@ -33,7 +34,8 @@ function App() {
 
             const data = await response.json();
             console.log("✅ Response:", data);
-            setProgress("✅ Analysis complete (check logs)");
+            setItems(data.items || []);
+            setProgress("✅ Analysis complete");
         } catch (err) {
             console.error("❌ Error submitting:", err);
             setProgress("❌ Upload failed");
@@ -52,12 +54,30 @@ function App() {
             <div style={{ marginTop: '20px' }}>
                 <p>Progress: {progress}</p>
             </div>
-            <table border="1" cellPadding="10" style={{ marginTop: '20px' }}>
+            <table border="1" cellPadding="10" style={{ marginTop: '20px', width: '100%', textAlign: 'left' }}>
                 <thead>
-                    <tr><th>Item</th><th>Category</th><th>Value (AUD)</th><th>STR (%)</th><th>View Solds</th></tr>
+                    <tr>
+                        <th>Title</th>
+                        <th>Platform</th>
+                        <th>Year</th>
+                        <th>Category</th>
+                        <th>Value (AUD)</th>
+                    </tr>
                 </thead>
                 <tbody>
-                    <tr><td colSpan="5">No results yet</td></tr>
+                    {items.length === 0 ? (
+                        <tr><td colSpan="5">No results yet</td></tr>
+                    ) : (
+                        items.map((item, idx) => (
+                            <tr key={idx}>
+                                <td>{item.title}</td>
+                                <td>{item.platform || "–"}</td>
+                                <td>{item.year || "–"}</td>
+                                <td>{item.category || "–"}</td>
+                                <td>–</td>
+                            </tr>
+                        ))
+                    )}
                 </tbody>
             </table>
         </div>

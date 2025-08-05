@@ -48,32 +48,34 @@ export default async function handler(req, res) {
           messages: [
             {
               role: "system",
-              content: "You are a helpful assistant that extracts a list of individual items from an image and returns structured data.",
+              content: "You are a helpful assistant that extracts a structured list of items from an image."
             },
             {
               role: "user",
               content: [
                 {
                   type: "text",
-                  text: "List the items you see in this image as JSON. Each item should include a 'title' and 'category' (e.g., game, dvd, toy, book). Return only an array of objects like: [{ title: '...', category: '...' }]",
+                  text: "List the items in this image as JSON. Each item must include: title, platform (e.g. PC, PS2, Xbox), year (if visible), category (e.g. game, dvd), and a generated search field like 'Farming Simulator 2014 PC Game'. Return ONLY valid JSON: [{ title, platform, year, category, search }]"
                 },
                 {
                   type: "image_url",
                   image_url: {
-                    url: `data:image/jpeg;base64,${base64Image}`,
-                  },
-                },
-              ],
-            },
+                    url: `data:image/jpeg;base64,${base64Image}`
+                  }
+                }
+              ]
+            }
           ],
           max_tokens: 1000,
         }),
       });
 
       const json = await response.json();
-
-      const content = json.choices?.[0]?.message?.content || "";
+      let content = json.choices?.[0]?.message?.content || "";
       console.log("🧠 Raw OpenAI response:", content);
+
+      // Remove markdown wrapping if present
+      content = content.replace(/^```json\s*/i, "").replace(/```\s*$/, "");
 
       let items = [];
       try {
