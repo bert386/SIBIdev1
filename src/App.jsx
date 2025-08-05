@@ -34,8 +34,9 @@ function App() {
       console.log("🧠 Vision response:", data);
       setResults(data);
 
-      // Fetch pricing for each item
-      data.forEach(async (item, idx) => {
+      // Fetch pricing using for...of
+      for (let idx = 0; idx < data.length; idx++) {
+        const item = data[idx];
         const query = `${item.title} ${item.platform || ""} ${item.category || ""} ${item.year || ""}`.trim();
         const search = encodeURIComponent(query);
         try {
@@ -44,10 +45,10 @@ function App() {
           console.log(`💰 ${item.title} – $${json.avg} from ${json.solds.length} solds`);
           setValues((prev) => ({ ...prev, [idx]: json.avg }));
         } catch (err) {
-          console.error("❌ Error fetching eBay price:", err);
+          console.error(`❌ Error fetching eBay price for ${item.title}:`, err);
           setValues((prev) => ({ ...prev, [idx]: "N/A" }));
         }
-      });
+      }
     } catch (err) {
       console.error("❌ Error:", err);
     }
