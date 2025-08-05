@@ -1,10 +1,6 @@
-
-import formidable from "formidable";
-import fs from "fs";
-import { Readable } from "stream";
-import OpenAI from "openai";
-import cheerio from "cheerio";
-import axios from "axios";
+import { IncomingForm } from 'formidable';
+import fs from 'fs';
+import fetch from 'node-fetch';
 
 export const config = {
   api: {
@@ -12,105 +8,99 @@ export const config = {
   },
 };
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 export default async function handler(req, res) {
-  console.log("🟡 Parsing incoming form...");
+  if (req.method !== 'POST') {
+    return res.writeHead(405).end(JSON.stringify({ message: 'Only POST allowed' }));
+  }
 
-  const form = formidable({ multiples: false });
+  try {
+    const form = new IncomingForm({ multiples: false });
 
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      console.error("❌ Form parsing failed:", err);
-      return res.status(500).json({ error: "Form parsing failed" });
-    }
-
-    const file = files.file;
-
-    if (!file) {
-      console.error("❌ No image file found in the form data.");
-      return res.status(400).json({ error: "No image file uploaded" });
-    }
-
-    const fileData = fs.readFileSync(file[0].filepath);
-
-    console.log("📤 Sending to OpenAI Vision...");
-    const stream = Readable.from(fileData);
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "List every item you can see in this photo. For each item, include:\n\n- Title\n- Platform (e.g., Wii, PS2, Xbox, PC, DVD, Book, etc.)\n- Release Year (if found)\n- Category (game, dvd, book, toy, etc.)\n- A suggested eBay search string that includes platform and category",
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: "data:image/jpeg;base64," + fileData.toString("base64"),
-              },
-            },
-          ],
-        },
-      ],
-      temperature: 0.2,
-    });
-
-    const textResponse = response.choices[0]?.message?.content || "";
-    console.log("🧠 Raw OpenAI response:", textResponse);
-
-    let results = [];
-
-    try {
-      results = JSON.parse(textResponse);
-    } catch (e) {
-      console.error("❌ Failed to parse JSON:", e);
-      return res.status(500).json({ error: "Failed to parse AI response" });
-    }
-
-    // 🟡 Scraping eBay for sold listings...
-    console.log("🟡 Scraping eBay for sold listings...");
-    for (const item of results) {
-      const query = item.search || item.title;
-      const searchURL = `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(query)}&LH_Sold=1&LH_Complete=1`;
-
-      try {
-        const { data: html } = await axios.get(searchURL, {
-          headers: {
-            "User-Agent": "Mozilla/5.0"
-          }
-        });
-
-        const $ = cheerio.load(html);
-        const prices = [];
-
-        $(".s-item").each((i, el) => {
-          const priceText = $(el).find(".s-item__price").text().replace(/[^0-9.]/g, "");
-          if (priceText) {
-            prices.push(parseFloat(priceText));
-          }
-        });
-
-        if (prices.length) {
-          const avg = (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2);
-          item.value = `$${avg} AUD`;
-          console.log(`✅ ${item.title} → $${avg} from ${prices.length} results`);
-        } else {
-          item.value = "NRS";
-          console.log(`⚠️ No sold prices found for: ${item.title}`);
-        }
-      } catch (err) {
-        console.error(`❌ Scrape failed for ${item.title}:`, err.message);
-        item.value = "ERR";
+    form.parse(req, async (err, fields, files) => {
+      if (err) {
+        console.error("❌ Error parsing form:", err);
+        return res.writeHead(500).end(JSON.stringify({ message: "Form parsing failed" }));
       }
-    }
 
-    // 🔚 Final response
-    res.status(200).json({ results });
-  });
+      const imageFile = files.file?.[0];
+      if (!imageFile) {
+        return res.writeHead(400).end(JSON.stringify({ message: "No file uploaded" }));
+      }
+
+      const filePath = imageFile.filepath;
+      const imageBuffer = fs.readFileSync(filePath);
+      const base64Image = imageBuffer.toString('base64');
+
+      if (!OPENAI_API_KEY) {
+        return res.writeHead(500).end(JSON.stringify({ message: "Missing OpenAI API key" }));
+      }
+
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: "You are a helpful assistant that extracts a structured list of items from an image."
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "List the items in this image as JSON. Each item must include: title, platform (e.g. PC, PS2, Xbox), year (most likely release year as a number, even if not visible — use general knowledge), category (e.g. game, dvd), and a generated search field like 'Farming Simulator 2014 PC Game'. Return ONLY valid JSON: [{ title, platform, year, category, search }]"
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:image/jpeg;base64,${base64Image}`
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 1000,
+        }),
+      });
+
+      const json = await response.json();
+      let content = json.choices?.[0]?.message?.content || "";
+      console.log("🧠 Raw OpenAI response:", content);
+
+      // Remove markdown wrapping if present
+      content = content.replace(/^```json\s*/i, "").replace(/```\s*$/, "");
+
+      let items = [];
+      try {
+        items = JSON.parse(content);
+// Rebuild search string to include title, platform, category, and year
+      items = items.map(item => {
+        const yearSuffix = item.year ? ` ${item.year}` : '';
+        const platform = item.platform || '';
+        const category = item.category || '';
+        const search = `${item.title} ${platform} ${category}${yearSuffix}`.trim();
+        return {
+          ...item,
+          search
+        };
+      });
+        console.log("✅ Parsed items:", items);
+      } catch (parseErr) {
+        console.error("❌ Failed to parse JSON:", parseErr);
+      }
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ items }));
+    });
+  } catch (e) {
+    console.error("❌ Critical API error:", e);
+    res.writeHead(500).end(JSON.stringify({ message: "Internal server error" }));
+  }
 }
