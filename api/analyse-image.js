@@ -94,6 +94,8 @@ export default async function handler(req, res) {
         console.log("✅ Parsed items:", items);
       } catch (parseErr) {
         console.error("❌ Failed to parse JSON:", parseErr);
+        console.error("🪵 Raw broken content:", content);
+        return res.status(500).json({ error: "Malformed OpenAI response", details: parseErr.message });
       }
 
       res.setHeader("Content-Type", "application/json");
