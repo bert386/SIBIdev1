@@ -40,7 +40,8 @@ function App() {
         const query = `${item.title} ${item.platform || ""} ${item.category || ""} ${item.year || ""}`.trim();
         const search = encodeURIComponent(query);
         try {
-          const res = await fetch(`/api/fetch-ebay?search=${search}`);
+          console.log(`📡 Fetching /api/fetch-ebay?search=${search}`);
+        const res = await fetch(`/api/fetch-ebay?search=${search}`);
           const json = await res.json();
           console.log(`💰 ${item.title} – $${json.avg} from ${json.solds.length} solds`);
           setValues((prev) => ({ ...prev, [idx]: json.avg }));
