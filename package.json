@@ -11,5 +11,8 @@
     "cheerio": "^1.0.0-rc.12",
     "formidable": "^3.5.2",
     "node-fetch": "^2.6.9"
+  },
+  "devDependencies": {
+    "vite": "^4.5.0"
   }
 }
