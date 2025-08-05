@@ -47,13 +47,7 @@ export default async function handler(req, res) {
           content: [
             {
               type: "text",
-              text: "List every item you can see in this photo. For each item, include:
-
-- Title
-- Platform (e.g., Wii, PS2, Xbox, PC, DVD, Book, etc.)
-- Year (if visible)
-- Category (game, dvd, book, toy, etc.)
-- A suggested eBay search string that includes platform and category",
+              text: "List every item you can see in this photo. For each item, include:\n\n- Title\n- Platform (e.g., Wii, PS2, Xbox, PC, DVD, Book, etc.)\n- Release Year (if found)\n- Category (game, dvd, book, toy, etc.)\n- A suggested eBay search string that includes platform and category",
             },
             {
               type: "image_url",
