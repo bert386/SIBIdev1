@@ -1,3 +1,4 @@
+
 import { IncomingForm } from 'formidable';
 import fs from 'fs';
 import fetch from 'node-fetch';
@@ -12,7 +13,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.writeHead(405).end(JSON.stringify({ message: 'Only POST allowed' }));
+    return res.status(405).json({ message: 'Only POST allowed' });
   }
 
   try {
@@ -21,12 +22,13 @@ export default async function handler(req, res) {
     form.parse(req, async (err, fields, files) => {
       if (err) {
         console.error("❌ Error parsing form:", err);
-        return res.writeHead(500).end(JSON.stringify({ message: "Form parsing failed" }));
+        return res.status(500).json({ message: "Form parsing failed" });
       }
 
       const imageFile = files.file?.[0];
       if (!imageFile) {
-        return res.writeHead(400).end(JSON.stringify({ message: "No file uploaded" }));
+        console.error("❌ No image file received:", files);
+        return res.status(400).json({ message: "No file uploaded" });
       }
 
       const filePath = imageFile.filepath;
@@ -34,7 +36,8 @@ export default async function handler(req, res) {
       const base64Image = imageBuffer.toString('base64');
 
       if (!OPENAI_API_KEY) {
-        return res.writeHead(500).end(JSON.stringify({ message: "Missing OpenAI API key" }));
+        console.error("❌ Missing OpenAI API key");
+        return res.status(500).json({ message: "Missing OpenAI API key" });
       }
 
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -74,26 +77,22 @@ export default async function handler(req, res) {
       let content = json.choices?.[0]?.message?.content || "";
       console.log("🧠 Raw OpenAI response:", content);
 
-      // Remove markdown wrapping if present
       content = content.replace(/^```json\s*/i, "").replace(/```\s*$/, "");
 
       let items = [];
       try {
         items = JSON.parse(content);
-// Rebuild search string to include title, platform, category, and year
-      items = items.map(item => {
-        const yearSuffix = item.year ? ` ${item.year}` : '';
-        const platform = item.platform || '';
-        const category = item.category || '';
-        const search = `${item.title} ${platform} ${category}${yearSuffix}`.trim();
-        return {
-          ...item,
-          search
-        };
-      });
+        items = items.map(item => {
+          const yearSuffix = item.year ? ` ${item.year}` : '';
+          const platform = item.platform || '';
+          const category = item.category || '';
+          const search = `${item.title} ${platform} ${category}${yearSuffix}`.trim();
+          return { ...item, search };
+        });
         console.log("✅ Parsed items:", items);
       } catch (parseErr) {
-        console.error("❌ Failed to parse JSON:", parseErr);
+        console.error("❌ Failed to parse JSON:", parseErr, "\nContent:", content);
+        return res.status(500).json({ message: "OpenAI response could not be parsed", content });
       }
 
       res.setHeader("Content-Type", "application/json");
@@ -101,6 +100,6 @@ export default async function handler(req, res) {
     });
   } catch (e) {
     console.error("❌ Critical API error:", e);
-    res.writeHead(500).end(JSON.stringify({ message: "Internal server error" }));
+    res.status(500).json({ message: "Internal server error", error: e.message });
   }
 }
