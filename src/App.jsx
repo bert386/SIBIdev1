@@ -41,11 +41,14 @@ function App() {
   };
 
   useEffect(() => {
+    if (!results || results.length === 0) {
+      console.log("🟡 useEffect triggered but results is empty.");
+      return;
+    }
+
+    console.log("🔁 useEffect triggered with", results.length, "items.");
+
     const fetchPricing = async () => {
-      if (!results.length) return;
-
-      console.log("🔁 Starting pricing loop for", results.length, "items");
-
       for (let idx = 0; idx < results.length; idx++) {
         const item = results[idx];
         const query = `${item.title} ${item.platform || ""} ${item.category || ""} ${item.year || ""}`.trim();
