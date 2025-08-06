@@ -37,11 +37,6 @@ export default async function handler(req, res) {
       $(selector).each((_, el) => {
         const title = $(el).find('.s-item__title').text().trim();
         const priceText = $(el).find('.s-item__price').first().text().trim();
-      if (priceText.toLowerCase().includes('price: 20')) {
-        console.warn('🚫 Skipping ad listing due to suspicious price pattern:', priceText);
-        return;
-      }
-
         const link = $(el).find('.s-item__link').attr('href');
 
         if (!title || !priceText || !link) return;
