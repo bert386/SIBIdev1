@@ -56,12 +56,8 @@ export default async function handler(req, res) {
     console.log(`🔍 Total listings parsed from selectors: ${totalFound}`);
 
     const filteredItems = items.slice(1);
-    
-    const sortedItems = items.slice(1).sort((a, b) => a.price - b.price).slice(0, 11);
-    const average = sortedItems.length > 0
-      ? Math.round(sortedItems.reduce((sum, item) => sum + item.price, 0) / sortedItems.length)
-      : 0;
-          ? Math.round(filteredItems.reduce((sum, item) => sum + item.price, 0) / filteredItems.length)
+    const average = filteredItems.length > 0
+      ? Math.round(filteredItems.reduce((sum, item) => sum + item.price, 0) / filteredItems.length)
       : 0;
 
     return res.status(200).json({ average, items });
