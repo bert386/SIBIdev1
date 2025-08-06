@@ -37,7 +37,6 @@ export default function App() {
       const item = enriched[i];
       try {
         console.log('🔄 Fetching eBay pricing for:', item.search);
-        await new Promise(r => setTimeout(r, 3000));
         const ebayRes = await fetch('/api/fetch-ebay', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
