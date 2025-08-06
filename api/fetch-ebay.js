@@ -15,15 +15,22 @@ export default async function handler(req, res) {
 
   try {
     const { data: html } = await axios.get(url);
+    console.log('🧪 HTML preview:', html.substring(0, 1000));
+    const $ = cheerio.load(html);
     const $ = cheerio.load(html);
     const items = [];
+    const found = $('li.s-item').length;
+    console.log(`🔍 Found ${found} listing items`);
 
     $('li.s-item').each((_, el) => {
       const title = $(el).find('.s-item__title').text().trim();
       const priceText = $(el).find('.s-item__price').first().text().trim();
       const link = $(el).find('.s-item__link').attr('href');
 
-      if (!title || !priceText || !link) return;
+      if (!title || !priceText || !link) {
+        console.warn('⚠️ Skipping item due to missing data:', { title, priceText, link });
+        return;
+      }
 
       const priceMatch = priceText.replace(/[^\d.]/g, '');
       const price = parseFloat(priceMatch);
