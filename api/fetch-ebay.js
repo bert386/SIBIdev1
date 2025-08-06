@@ -32,7 +32,6 @@ export default async function handler(req, res) {
 
     $('li.s-item').each((_, el) => {
       const title = $(el).find('.s-item__title').text().trim();
-      }
 
       const priceText = $(el).find('.s-item__price').first().text().trim();
       const link = $(el).find('.s-item__link').attr('href');
