@@ -21,13 +21,7 @@ export default function App() {
       });
 
       const data = await res.json();
-      const enriched = data.items.map(item => ({
-        ...item,
-        value: '—',
-        solds: ''
-      }));
-
-      setItems(enriched);
+      setItems(data.items);
     } catch (err) {
       console.error('❌ Error:', err);
     }
@@ -39,7 +33,8 @@ export default function App() {
     setFetchingPrices(true);
     const enriched = [...items];
 
-    for (const item of enriched) {
+    for (let i = 0; i < enriched.length; i++) {
+      const item = enriched[i];
       try {
         console.log('🔄 Fetching eBay pricing for:', item.search);
         const ebayRes = await fetch('/api/fetch-ebay', {
