@@ -32,9 +32,6 @@ export default async function handler(req, res) {
 
     $('li.s-item').each((_, el) => {
       const title = $(el).find('.s-item__title').text().trim();
-      if (title.includes('Shop on eBay')) {
-        console.warn('🚫 Skipping ad listing:', title);
-        return;
       }
 
       const priceText = $(el).find('.s-item__price').first().text().trim();
