@@ -103,3 +103,36 @@ export default async function handler(req, res) {
     res.status(500).json({ message: "Internal server error", error: e.message });
   }
 }
+
+
+      // 🔄 Sequentially fetch value for each item
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        console.log(`🔁 (${i + 1}/${items.length}) Fetching eBay data for:`, item.search);
+
+        try {
+          const ebayRes = await fetch(`${req.headers.origin}/api/fetch-ebay`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ search: item.search, platform: item.platform }),
+          });
+
+          const ebayData = await ebayRes.json();
+          item.average = ebayData.average || 0;
+          item.soldItems = ebayData.items || [];
+
+          console.log(`✅ Completed: ${item.search} — Avg: $${item.average}, Sold Count: ${item.soldItems.length}`);
+        } catch (err) {
+          console.error(`❌ Error fetching eBay for: ${item.search}`, err.message);
+          item.average = 0;
+          item.soldItems = [];
+        }
+      }
+
+      return res.status(200).json({ items });
+    });
+  } catch (error) {
+    console.error("❌ Unexpected error:", error.message);
+    return res.status(500).json({ message: "Server error" });
+  }
+}
