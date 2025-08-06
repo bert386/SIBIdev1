@@ -49,14 +49,15 @@ export default async function handler(req, res) {
           items.push({ title, price, link });
         }
 
-        if (items.length >= 10) return false;
+        if (items.length >= 11) return false;
       });
     }
 
     console.log(`🔍 Total listings parsed from selectors: ${totalFound}`);
 
-    const average = items.length > 0
-      ? Math.round(items.reduce((sum, item) => sum + item.price, 0) / items.length)
+    const filteredItems = items.slice(1);
+    const average = filteredItems.length > 0
+      ? Math.round(filteredItems.reduce((sum, item) => sum + item.price, 0) / filteredItems.length)
       : 0;
 
     return res.status(200).json({ average, items });
