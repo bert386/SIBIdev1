@@ -73,6 +73,7 @@ export default async function handler(req, res) {
         }),
       });
 
+      
       const json = await response.json();
       let content = json.choices?.[0]?.message?.content || "";
       console.log("🧠 Raw OpenAI response:", content);
@@ -86,24 +87,13 @@ export default async function handler(req, res) {
           const yearSuffix = item.year ? ` ${item.year}` : '';
           const platform = item.platform || '';
           const category = item.category || '';
-          const search = `${item.title} ${platform} ${category}${yearSuffix}`.trim();
+          const search = `${item.title} ${platform} ${category}${yearSuffix}`.replace(/\s+/g, " ").trim();
           return { ...item, search };
         });
-        console.log("✅ Parsed items:", items);
-      } catch (parseErr) {
-        console.error("❌ Failed to parse JSON:", parseErr, "\nContent:", content);
+      } catch (err) {
+        console.error("❌ Failed to parse OpenAI JSON:", err.message);
         return res.status(500).json({ message: "OpenAI response could not be parsed", content });
       }
-
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ items }));
-    });
-  } catch (e) {
-    console.error("❌ Critical API error:", e);
-    res.status(500).json({ message: "Internal server error", error: e.message });
-  }
-}
-
 
       // 🔄 Sequentially fetch value for each item
       try {
@@ -129,6 +119,7 @@ export default async function handler(req, res) {
         console.error("❌ eBay scraping failed:", err.message);
         return res.status(500).json({ message: "eBay scraping error" });
       }
+
     });
   } catch (error) {
     console.error("❌ Unexpected error:", error.message);
