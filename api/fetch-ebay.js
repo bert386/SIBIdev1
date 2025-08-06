@@ -9,15 +9,17 @@ export default async function handler(req, res) {
 
   const { search, platform } = req.body;
   const encoded = encodeURIComponent(search);
-  const ebayUrl = `https://www.ebay.com.au/sch/i.html?_nkw=${encoded}&_sop=13&LH_Sold=1&LH_Complete=1`;
+  const url = `https://www.ebay.com.au/sch/i.html?_nkw=${encoded}&_sop=13&LH_Sold=1&LH_Complete=1`;
 
-  const scraperApiKey = process.env.SCRAPER_API_KEY;
-  const proxyUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(ebayUrl)}`;
-
-  console.log("🔍 eBay Search URL via ScraperAPI:", proxyUrl);
+  console.log("🔍 eBay Search URL:", url);
 
   try {
-    const { data: html } = await axios.get(proxyUrl);
+    const { data: html } = await axios.get(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+      }
+    });
+
     console.log("🧪 HTML preview:", html.substring(0, 1000));
 
     if (html.includes("Pardon our interruption") || html.includes("To continue, please verify")) {
