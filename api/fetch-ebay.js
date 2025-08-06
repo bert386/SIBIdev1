@@ -54,39 +54,7 @@ export default async function handler(req, res) {
       ? Math.round(items.reduce((sum, item) => sum + item.price, 0) / items.length)
       : 0;
 
-    
-    const openai = (await import('openai')).default;
-    const client = new openai({ apiKey: process.env.OPENAI_API_KEY });
-    
-    const gptPrompt = `Estimate the average secondhand price in AUD for this item based on recent trends, platform and year: ${search}. Just return a number with no symbols or words.`;
-    let gptEstimate = 0;
-
-    try {
-      const gptResponse = await client.chat.completions.create({
-        model: "gpt-4",
-        messages: [{ role: "user", content: gptPrompt }],
-      });
-      const raw = gptResponse.choices[0].message.content.trim();
-      gptEstimate = parseFloat(raw.replace(/[^\d.]/g, ''));
-    } catch (e) {
-      console.warn("⚠️ GPT estimate failed:", e.message);
-    }
-
-    const filteredPrices = items.filter(item => {
-      return item.price >= 0.3 * gptEstimate && item.price <= 1.7 * gptEstimate;
-    });
-
-    const average = filteredPrices.length > 0
-      ? Math.round(filteredPrices.reduce((sum, item) => sum + item.price, 0) / filteredPrices.length)
-      : 0;
-
-    return res.status(200).json({
-      allPrices: items,
-      filteredPrices,
-      gptEstimate,
-      average
-    });
-
+    return res.status(200).json({ average, items });
   } catch (err) {
     console.error("❌ Scraping error:", err.message);
     return res.status(500).json({ message: 'Scraping failed' });
