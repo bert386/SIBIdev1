@@ -9,17 +9,15 @@ export default async function handler(req, res) {
 
   const { search, platform } = req.body;
   const encoded = encodeURIComponent(search);
-  const url = `https://www.ebay.com.au/sch/i.html?_nkw=${encoded}&_sop=13&LH_Sold=1&LH_Complete=1`;
+  const ebayUrl = `https://www.ebay.com.au/sch/i.html?_nkw=${encoded}&_sop=13&LH_Sold=1&LH_Complete=1`;
 
-  console.log("🔍 eBay Search URL:", url);
+  const scraperApiKey = process.env.SCRAPER_API_KEY;
+  const proxyUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(ebayUrl)}`;
+
+  console.log("🔍 eBay Search URL via ScraperAPI:", proxyUrl);
 
   try {
-    const { data: html } = await axios.get(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
-      }
-    });
-
+    const { data: html } = await axios.get(proxyUrl);
     console.log("🧪 HTML preview:", html.substring(0, 1000));
 
     if (html.includes("Pardon our interruption") || html.includes("To continue, please verify")) {
@@ -36,11 +34,6 @@ export default async function handler(req, res) {
       const title = $(el).find('.s-item__title').text().trim();
       const priceText = $(el).find('.s-item__price').first().text().trim();
       const link = $(el).find('.s-item__link').attr('href');
-
-      if (title.includes('Shop on eBay')) {
-        console.warn('🚫 Skipping ad listing:', title);
-        return;
-      }
 
       if (!title || !priceText || !link) {
         console.warn('⚠️ Skipping item due to missing data:', { title, priceText, link });
