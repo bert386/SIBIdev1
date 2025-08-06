@@ -27,27 +27,38 @@ export default async function handler(req, res) {
 
     const $ = cheerio.load(html);
     const items = [];
-    const found = $('li.s-item').length;
-    console.log(`🔍 Found ${found} listing items`);
+    const selectors = ['li.s-item', '.s-item__wrapper'];
 
-    $('li.s-item').each((_, el) => {
-      const title = $(el).find('.s-item__title').text().trim();
+    let totalFound = 0;
+    for (const selector of selectors) {
+      const found = $(selector).length;
+      totalFound += found;
 
-      const priceText = $(el).find('.s-item__price').first().text().trim();
-      const link = $(el).find('.s-item__link').attr('href');
-
-      if (!title || !priceText || !link) {
-        console.warn('⚠️ Skipping item due to missing data:', { title, priceText, link });
+      $(selector).each((_, el) => {
+        const title = $(el).find('.s-item__title').text().trim();
+        const priceText = $(el).find('.s-item__price').first().text().trim();
+      if (priceText.toLowerCase().includes('price: 20')) {
+        console.warn('🚫 Skipping ad listing due to suspicious price pattern:', priceText);
         return;
       }
 
-      const priceMatch = priceText.replace(/[^\d.]/g, '');
-      const price = parseFloat(priceMatch);
-      if (isNaN(price) || price <= 0) return;
+        const link = $(el).find('.s-item__link').attr('href');
 
-      items.push({ title, price, link });
-      if (items.length >= 10) return false;
-    });
+        if (!title || !priceText || !link) return;
+
+        const priceMatch = priceText.replace(/[^\d.]/g, '');
+        const price = parseFloat(priceMatch);
+        if (isNaN(price) || price <= 0) return;
+
+        if (!items.some(i => i.title === title && i.price === price)) {
+          items.push({ title, price, link });
+        }
+
+        if (items.length >= 10) return false;
+      });
+    }
+
+    console.log(`🔍 Total listings parsed from selectors: ${totalFound}`);
 
     const average = items.length > 0
       ? Math.round(items.reduce((sum, item) => sum + item.price, 0) / items.length)
