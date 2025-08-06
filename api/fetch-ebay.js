@@ -16,8 +16,8 @@ export default async function handler(req, res) {
   try {
     const { data: html } = await axios.get(url);
     console.log('🧪 HTML preview:', html.substring(0, 1000));
-    const $ = cheerio.load(html);
-    const $ = cheerio.load(html);
+    
+    
     const items = [];
     const found = $('li.s-item').length;
     console.log(`🔍 Found ${found} listing items`);
