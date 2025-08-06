@@ -35,6 +35,11 @@ export default async function handler(req, res) {
       const priceText = $(el).find('.s-item__price').first().text().trim();
       const link = $(el).find('.s-item__link').attr('href');
 
+      if (title.includes('Shop on eBay')) {
+        console.warn('🚫 Skipping ad listing:', title);
+        return;
+      }
+
       if (!title || !priceText || !link) {
         console.warn('⚠️ Skipping item due to missing data:', { title, priceText, link });
         return;
