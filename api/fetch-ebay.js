@@ -14,10 +14,20 @@ export default async function handler(req, res) {
   console.log("🔍 eBay Search URL:", url);
 
   try {
-    const { data: html } = await axios.get(url);
-    console.log('🧪 HTML preview:', html.substring(0, 1000));
-    
-    
+    const { data: html } = await axios.get(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+      }
+    });
+
+    console.log("🧪 HTML preview:", html.substring(0, 1000));
+
+    if (html.includes("Pardon our interruption") || html.includes("To continue, please verify")) {
+      console.warn("🛑 Bot protection page received from eBay.");
+      return res.status(500).json({ message: "Scraping blocked by eBay" });
+    }
+
+    const $ = cheerio.load(html);
     const items = [];
     const found = $('li.s-item').length;
     console.log(`🔍 Found ${found} listing items`);
@@ -34,14 +44,11 @@ export default async function handler(req, res) {
 
       const priceMatch = priceText.replace(/[^\d.]/g, '');
       const price = parseFloat(priceMatch);
-
       if (isNaN(price) || price <= 0) return;
 
       items.push({ title, price, link });
       if (items.length >= 10) return false;
     });
-
-    console.log("✅ Scraped items:", items.length);
 
     const average = items.length > 0
       ? Math.round(items.reduce((sum, item) => sum + item.price, 0) / items.length)
