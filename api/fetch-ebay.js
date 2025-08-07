@@ -1,13 +1,28 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import fuzz from 'fuzzball';
+
+const BUNDLE_WORDS = [
+  'lot', 'bundle', 'pick', 'collection', 'job lot', 'bulk', 'various', 'pick n mix', 'mixed'
+];
+
+function isBundleOrLot(title) {
+  const lower = title.toLowerCase();
+  return BUNDLE_WORDS.some(word => lower.includes(word));
+}
+
+function similarityScore(a, b) {
+  // Fuzzball ratio (0-100)
+  return fuzz.token_set_ratio(a, b);
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Only POST requests allowed' });
   }
 
-  const { search, platform } = req.body;
+  const { search } = req.body;
   const encoded = encodeURIComponent(search);
   const ebayUrl = `https://www.ebay.com.au/sch/i.html?_nkw=${encoded}&_sop=13&LH_Sold=1&LH_Complete=1`;
 
@@ -29,11 +44,7 @@ export default async function handler(req, res) {
     const items = [];
     const selectors = ['li.s-item', '.s-item__wrapper'];
 
-    let totalFound = 0;
     for (const selector of selectors) {
-      const found = $(selector).length;
-      totalFound += found;
-
       $(selector).each((_, el) => {
         const title = $(el).find('.s-item__title').text().trim();
         const priceText = $(el).find('.s-item__price').first().text().trim();
@@ -41,28 +52,41 @@ export default async function handler(req, res) {
 
         if (!title || !priceText || !link) return;
 
+        // Bundle/lot filtering (excluding "set")
+        if (isBundleOrLot(title)) return;
+
+        // Title similarity (80%+)
+        const similarity = similarityScore(title, search);
+        if (similarity < 80) return;
+
         const priceMatch = priceText.replace(/[^\d.]/g, '');
         const price = parseFloat(priceMatch);
         if (isNaN(price) || price <= 0) return;
 
         if (!items.some(i => i.title === title && i.price === price)) {
-          items.push({ title, price, link });
+          items.push({ title, price, link, similarity });
         }
-
-        if (items.length >= 11) return false;
+        if (items.length >= 30) return false;
       });
+      if (items.length >= 30) break;
     }
 
-    console.log(`🔍 Total listings parsed from selectors: ${totalFound}`);
+    // Sort items by similarity (descending), then price
+    items.sort((a, b) => b.similarity - a.similarity || a.price - b.price);
 
-    const filteredItems = items.slice(1);
-    const average = filteredItems.length > 0
-      ? Math.round(filteredItems.reduce((sum, item) => sum + item.price, 0) / filteredItems.length)
+    // Remove highest/lowest if 4+ remain
+    let filtered = items;
+    if (filtered.length >= 4) {
+      filtered = filtered.slice(1, -1);
+    }
+
+    const average = filtered.length > 0
+      ? Math.round(filtered.reduce((sum, item) => sum + item.price, 0) / filtered.length)
       : 0;
 
-    return res.status(200).json({ average, items });
+    return res.status(200).json({ average, items: filtered });
   } catch (err) {
     console.error("❌ Scraping error:", err.message);
     return res.status(500).json({ message: 'Scraping failed' });
   }
-};
+}
