@@ -97,7 +97,7 @@ item.solds = `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(item.
                 <td>{item.platform}</td>
                 <td>{item.year}</td>
                 <td>{item.category}</td>
-                <td><div>{item.median}<br/><small style={{color: '#666'}}>min: {item.min} / max: {item.max}</small></div></td>
+                <td><div><b>Median:</b> {item.median}<br/><b>Mean:</b> {item.mean}<br/><small style={{color: '#666'}}>min: {item.min} / max: {item.max}<br/>qty: {item.qty}{item.usedFallback ? ' (Fallback: no strong matches)' : ''}</small></div></td>
                 <td>
                   {item.solds ? (
                     <a href={item.solds} target="_blank" rel="noopener noreferrer">
