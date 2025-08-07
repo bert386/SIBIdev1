@@ -1,7 +1,7 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import fuzz from 'fuzzball';
+import * as fuzz from 'fuzzball';
 
 const BUNDLE_WORDS = [
   'lot', 'bundle', 'pick', 'collection', 'job lot', 'bulk', 'various', 'pick n mix', 'mixed'
