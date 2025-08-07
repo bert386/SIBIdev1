@@ -3,7 +3,7 @@ import axios from 'axios';
 export default async (req, res) => {
   try {
     const { search } = req.body;
-    const scraperApiKey = process.env.SCRAPERAPI_KEY;
+    const scraperApiKey = process.env.SCRAPERAPI_KEY || process.env.SCRAPER_API_KEY;
     const targetUrl = `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(search)}&_sop=12&LH_Sold=1&LH_Complete=1`;
     const url = `http://api.scraperapi.com/?api_key=${scraperApiKey}&url=${encodeURIComponent(targetUrl)}&country_code=au`;
 
