@@ -23,7 +23,7 @@ export default function App() {
 
     // Step 2: For each identified item, get eBay sold data
     const ebayResults = await Promise.all(
-      itemList.map(async (item) => {
+      (Array.isArray(itemList)?itemList:[]).map(async (item) => {
         try {
           const ebayRes = await fetch("/api/fetch-ebay", {
             method: "POST",
@@ -39,7 +39,7 @@ export default function App() {
             ...item,
             ...sold,
           };
-        } catch {
+        } catch (e) { console.error("eBay fetch error:", e);
           return { ...item, error: "Fetch failed" };
         }
       })
@@ -70,7 +70,7 @@ export default function App() {
             </tr>
           </thead>
           <tbody>
-            {results.map((item, i) => (
+            {(Array.isArray(results)?results:[]).map((item, i) => (
               <tr key={i}>
                 <td>{item.product_title || item.title || "—"}</td>
                 <td>{item.platform || "—"}</td>
