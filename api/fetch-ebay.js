@@ -2,11 +2,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-function isAdOrShop(title) {
-  const t = title.toLowerCase();
-  return t.includes('shop on ebay') || t.includes('ad') || t === '';
-}
-
 function calcMedian(prices) {
   if (!prices.length) return 0;
   const sorted = prices.slice().sort((a, b) => a - b);
@@ -44,13 +39,10 @@ export default async function handler(req, res) {
       const priceText = $(el).find('.s-item__price').first().text().trim();
       const link = $(el).find('.s-item__link').attr('href');
       if (!title || !priceText || !link) continue;
-      if (isAdOrShop(title)) continue;
       const priceMatch = priceText.replace(/[^\d.]/g, '');
       const price = parseFloat(priceMatch);
-      if (isNaN(price) || price <= 0) continue;
-      if (!items.some(i => i.title === title && i.price == price)) {
-        items.push({ title, price, link });
-      }
+      if (isNaN(price)) continue;
+      items.push({ title, price, link });
       if (items.length >= 10) break;
     }
 
