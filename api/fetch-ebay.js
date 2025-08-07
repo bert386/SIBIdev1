@@ -26,7 +26,8 @@ export default async function handler(req, res) {
   const ebayUrl = `https://www.ebay.com.au/sch/i.html?_nkw=${encoded}&_sop=13&LH_Sold=1&LH_Complete=1`;
 
   const scraperApiKey = process.env.SCRAPER_API_KEY;
-  const proxyUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(ebayUrl)}`;
+  // PATCHED: enable JS Rendering
+  const proxyUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(ebayUrl)}&render=true`;
 
   try {
     const { data: html } = await axios.get(proxyUrl);
