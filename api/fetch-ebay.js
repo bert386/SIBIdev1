@@ -36,8 +36,8 @@ export default async function handler(req, res) {
     const { data: html } = await axios.get(proxyUrl);
     const $ = cheerio.load(html);
 
-    // Grab all <li class="s-item"> on the entire page, regardless of parent
-    const lis = $('li.s-item').toArray();
+    // Only direct li.s-item children of ul.srp-results.srp-list.clearfix
+    const lis = $('ul.srp-results.srp-list.clearfix > li.s-item').toArray();
 
     const items = [];
     for (const el of lis) {
