@@ -37,68 +37,21 @@ export default async function handler(req, res) {
     const { data: html } = await axios.get(proxyUrl);
     const $ = cheerio.load(html);
 
-    // DOM walking to split above/below
-    let aboveNodes = [];
-    let belowNodes = [];
-    let allValidNodes = [];
-    let inFewerWords = false;
-
-    const resultContainer = $('#srp-river-results, .srp-results, .srp-river').first().length
-      ? $('#srp-river-results, .srp-results, .srp-river').first()
-      : $('body');
-
-    resultContainer.children().each((_, el) => {
-      const tag = el.tagName || el.name;
-      const isLi = tag === 'li' && $(el).hasClass('s-item');
-      const isH3 = tag === 'h3' && $(el).text().trim() === "Results matching fewer words";
-
-      if (isH3) {
-        inFewerWords = true;
-        return;
+    const sItems = $('li.s-item').toArray();
+    const items = [];
+    for (const el of sItems) {
+      const title = $(el).find('.s-item__title').text().trim();
+      const priceText = $(el).find('.s-item__price').first().text().trim();
+      const link = $(el).find('.s-item__link').attr('href');
+      if (!title || !priceText || !link) continue;
+      if (isAdOrShop(title)) continue;
+      const priceMatch = priceText.replace(/[^\d.]/g, '');
+      const price = parseFloat(priceMatch);
+      if (isNaN(price) || price <= 0) continue;
+      if (!items.some(i => i.title === title && i.price == price)) {
+        items.push({ title, price, link });
       }
-      if (isLi) {
-        if (inFewerWords) {
-          belowNodes.push(el);
-        } else {
-          aboveNodes.push(el);
-        }
-        allValidNodes.push(el);
-      }
-    });
-
-    function extractItems(nodes, maxResults) {
-      const items = [];
-      for (const el of nodes) {
-        const title = $(el).find('.s-item__title').text().trim();
-        const priceText = $(el).find('.s-item__price').first().text().trim();
-        const link = $(el).find('.s-item__link').attr('href');
-        if (!title || !priceText || !link) continue;
-        if (isAdOrShop(title)) continue;
-        const priceMatch = priceText.replace(/[^\d.]/g, '');
-        const price = parseFloat(priceMatch);
-        if (isNaN(price) || price <= 0) continue;
-        if (!items.some(i => i.title === title && i.price == price)) {
-          items.push({ title, price, link });
-        }
-        if (items.length >= maxResults) break;
-      }
-      return items;
-    }
-
-    let items = extractItems(aboveNodes, 10);
-    let usedFallback = false;
-    let debug = {
-      aboveCount: aboveNodes.length,
-      belowCount: belowNodes.length,
-      allCount: allValidNodes.length
-    };
-    if (!items.length) {
-      items = extractItems(belowNodes, 5);
-      if (!items.length) {
-        // fallback: first 5 from all s-items
-        items = extractItems(allValidNodes, 5);
-        usedFallback = true;
-      }
+      if (items.length >= 10) break;
     }
 
     const pricesUsed = items.map(i => i.price);
@@ -114,9 +67,7 @@ export default async function handler(req, res) {
       max,
       prices: pricesUsed,
       items,
-      qty: pricesUsed.length,
-      usedFallback,
-      debug
+      qty: pricesUsed.length
     });
   } catch (err) {
     return res.status(500).json({ message: 'Scraping failed' });
