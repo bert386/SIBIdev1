@@ -16,11 +16,9 @@ export default async function handler(req, res) {
   const params = {
     api_key: SCRAPER_API_KEY,
     query: search,
-    tld: 'com.au',
-    show_only: 'completed_items,sold_items',
+    show_only: 'sold_items',
     country_code: 'au',
-    items_per_page: '20',
-    page: '1'
+    tld: 'com'
   };
 
   try {
