@@ -2,76 +2,98 @@ import React, { useState } from "react";
 
 export default function App() {
   const [file, setFile] = useState(null);
+  const [items, setItems] = useState([]);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-  };
+  const handleFileChange = (e) => setFile(e.target.files[0]);
 
-  const handleStart = async () => {
+  const handleAnalyse = async () => {
     setLoading(true);
     setResults([]);
-    // Simulate API call (replace with actual fetch for image analysis + fetch-ebay)
-    // Here we mock the result format you pasted above
-    const apiResult = [
-      {
-        "product_title": "McLeod's Daughters - The Complete First Series / Season 1 One (DVD) 6 Disc setOpens in a new window or tab",
-        "image": "https://i.ebayimg.com/images/g/UZsAAOSwDDJllOUb/s-l500.webp",
-        "product_url": "https://www.ebay.com.au/itm/396417052597",
-        "condition": "Pre-owned · DVD · Drama",
-        "item_price": { "value": 17.99, "currency": "CAD" },
-        "extra_info": "Best Offer",
-        "shipping_cost": "Free delivery"
-      }
-    ];
-    setTimeout(() => {
-      setResults(apiResult);
-      setLoading(false);
-    }, 1000);
+    // Step 1: Upload image for item analysis
+    const formData = new FormData();
+    formData.append("file", file);
+    const openaiRes = await fetch("/api/analyse-image", {
+      method: "POST",
+      body: formData,
+    });
+    const itemList = await openaiRes.json();
+    setItems(itemList);
+
+    // Step 2: For each identified item, get eBay sold data
+    const ebayResults = await Promise.all(
+      itemList.map(async (item) => {
+        try {
+          const ebayRes = await fetch("/api/fetch-ebay", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ search: item.search }),
+          });
+          const ebayJson = await ebayRes.json();
+          // Use the first sold item from new JSON structure, fallback to empty object
+          const sold = Array.isArray(ebayJson.soldItems) && ebayJson.soldItems.length > 0
+            ? ebayJson.soldItems[0]
+            : {};
+          return {
+            ...item,
+            ...sold,
+          };
+        } catch {
+          return { ...item, error: "Fetch failed" };
+        }
+      })
+    );
+    setResults(ebayResults);
+    setLoading(false);
   };
 
   return (
-    <div style={{ fontFamily: "Arial", margin: 32 }}>
+    <div style={{ margin: 32, fontFamily: "Arial" }}>
       <h1>SIBI – Should I Buy It</h1>
-      <div style={{ marginBottom: 16 }}>
-        <input type="file" onChange={handleFileChange} />
-        <button onClick={handleStart} disabled={loading || !file}>
-          {loading ? "Analysing..." : "Start Analysis"}
-        </button>
-      </div>
-      {loading && <div>Analysing image and fetching prices...</div>}
+      <input type="file" onChange={handleFileChange} />
+      <button onClick={handleAnalyse} disabled={!file || loading}>
+        {loading ? "Analysing..." : "Start"}
+      </button>
+      <hr />
       {results.length > 0 && (
-        <table border="1" cellPadding={6}>
+        <table border="1" cellPadding="8">
           <thead>
             <tr>
               <th>Title</th>
-              <th>Image</th>
-              <th>Condition</th>
-              <th>Value</th>
+              <th>Platform</th>
+              <th>Year</th>
+              <th>Category</th>
+              <th>Sold Price</th>
               <th>Currency</th>
-              <th>Shipping</th>
               <th>eBay Link</th>
             </tr>
           </thead>
           <tbody>
             {results.map((item, i) => (
               <tr key={i}>
-                <td>{item.product_title}</td>
+                <td>{item.product_title || item.title || "—"}</td>
+                <td>{item.platform || "—"}</td>
+                <td>{item.year || "—"}</td>
+                <td>{item.category || "—"}</td>
                 <td>
-                  {item.image ? (
-                    <img src={item.image} alt="" style={{ width: 80 }} />
-                  ) : (
-                    "—"
-                  )}
+                  {item.item_price?.value ||
+                    item.price ||
+                    item.soldPrice ||
+                    "—"}
                 </td>
-                <td>{item.condition || "—"}</td>
-                <td>{item.item_price?.value ?? "—"}</td>
-                <td>{item.item_price?.currency ?? "—"}</td>
-                <td>{item.shipping_cost || "—"}</td>
                 <td>
-                  {item.product_url ? (
-                    <a href={item.product_url} target="_blank" rel="noopener noreferrer">
+                  {item.item_price?.currency ||
+                    item.currency ||
+                    "—"}
+                </td>
+                <td>
+                  {item.product_url || item.link ? (
+                    <a
+                      href={item.product_url || item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       View
                     </a>
                   ) : (
