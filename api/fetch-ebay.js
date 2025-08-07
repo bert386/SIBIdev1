@@ -35,22 +35,17 @@ export default async function handler(req, res) {
 
   try {
     const { data: html } = await axios.get(proxyUrl);
-
-    if (html.includes("Pardon our interruption") || html.includes("To continue, please verify")) {
-      return res.status(500).json({ message: "Scraping blocked by eBay" });
-    }
-
     const $ = cheerio.load(html);
-    // Walk the result container in DOM order
+
+    // DOM walking to split above/below
     let aboveNodes = [];
     let belowNodes = [];
     let allValidNodes = [];
     let inFewerWords = false;
 
-    // Use the result list container (the parent of s-items and h3)
     const resultContainer = $('#srp-river-results, .srp-results, .srp-river').first().length
       ? $('#srp-river-results, .srp-results, .srp-river').first()
-      : $('body'); // fallback
+      : $('body');
 
     resultContainer.children().each((_, el) => {
       const tag = el.tagName || el.name;
@@ -92,6 +87,11 @@ export default async function handler(req, res) {
 
     let items = extractItems(aboveNodes, 10);
     let usedFallback = false;
+    let debug = {
+      aboveCount: aboveNodes.length,
+      belowCount: belowNodes.length,
+      allCount: allValidNodes.length
+    };
     if (!items.length) {
       items = extractItems(belowNodes, 5);
       if (!items.length) {
@@ -115,7 +115,8 @@ export default async function handler(req, res) {
       prices: pricesUsed,
       items,
       qty: pricesUsed.length,
-      usedFallback
+      usedFallback,
+      debug
     });
   } catch (err) {
     return res.status(500).json({ message: 'Scraping failed' });
