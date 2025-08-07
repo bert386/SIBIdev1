@@ -1,110 +1,81 @@
-
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 export default function App() {
   const [file, setFile] = useState(null);
-  const [items, setItems] = useState([]);
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [fetchingPrices, setFetchingPrices] = useState(false);
 
-  const handleUpload = async () => {
-    if (!file) return;
-
-    setLoading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const res = await fetch('/api/analyse-image', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-      setItems(data.items);
-    } catch (err) {
-      console.error('❌ Error:', err);
-    }
-
-    setLoading(false);
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
   };
 
-  const handleFetchPrices = async () => {
-    setFetchingPrices(true);
-    const enriched = [...items];
-
-    for (let i = 0; i < enriched.length; i++) {
-      const item = enriched[i];
-      try {
-        console.log('🔄 Fetching eBay pricing for:', item.search);
-        const ebayRes = await fetch('/api/fetch-ebay', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ search: item.search }),
-        });
-
-        const ebayData = await ebayRes.json();
-        console.log('📦 eBay Response:', ebayData);
-
-        item.median = ebayData.median ? `$${ebayData.median} AUD` : 'N/A';
-item.min = ebayData.min ? `$${ebayData.min} AUD` : '';
-item.max = ebayData.max ? `$${ebayData.max} AUD` : '';
-item.solds = `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(item.search)}&_sop=13&LH_Sold=1&LH_Complete=1`;
-      } catch (scrapeErr) {
-        console.error('❌ Failed to fetch eBay data:', scrapeErr);
-        item.value = 'Scrape failed';
+  const handleStart = async () => {
+    setLoading(true);
+    setResults([]);
+    // Simulate API call (replace with actual fetch for image analysis + fetch-ebay)
+    // Here we mock the result format you pasted above
+    const apiResult = [
+      {
+        "product_title": "McLeod's Daughters - The Complete First Series / Season 1 One (DVD) 6 Disc setOpens in a new window or tab",
+        "image": "https://i.ebayimg.com/images/g/UZsAAOSwDDJllOUb/s-l500.webp",
+        "product_url": "https://www.ebay.com.au/itm/396417052597",
+        "condition": "Pre-owned · DVD · Drama",
+        "item_price": { "value": 17.99, "currency": "CAD" },
+        "extra_info": "Best Offer",
+        "shipping_cost": "Free delivery"
       }
-    }
-
-    setItems(enriched);
-    setFetchingPrices(false);
+    ];
+    setTimeout(() => {
+      setResults(apiResult);
+      setLoading(false);
+    }, 1000);
   };
 
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ fontFamily: "Arial", margin: 32 }}>
       <h1>SIBI – Should I Buy It</h1>
-      <p>Version: v1.4.9 (Sequential Fix)</p>
-      <input type="file" accept="image/*" onChange={e => setFile(e.target.files[0])} />
-      <button onClick={handleUpload} disabled={loading || !file} style={{ marginLeft: 10 }}>
-        Start Analysis
-      </button>
-
-      {loading && <p>🔄 Analysing image...</p>}
-      {items.length > 0 && !loading && <p>✅ Analysis complete</p>}
-
-      {items.length > 0 && !loading && (
-        <button onClick={handleFetchPrices} disabled={fetchingPrices} style={{ marginTop: 10 }}>
-          {fetchingPrices ? 'Fetching Prices…' : 'Fetch eBay Prices'}
+      <div style={{ marginBottom: 16 }}>
+        <input type="file" onChange={handleFileChange} />
+        <button onClick={handleStart} disabled={loading || !file}>
+          {loading ? "Analysing..." : "Start Analysis"}
         </button>
-      )}
-
-      {items.length > 0 && (
-        <table border="1" cellPadding="6" style={{ marginTop: 20 }}>
+      </div>
+      {loading && <div>Analysing image and fetching prices...</div>}
+      {results.length > 0 && (
+        <table border="1" cellPadding={6}>
           <thead>
             <tr>
               <th>Title</th>
-              <th>Platform</th>
-              <th>Year</th>
-              <th>Category</th>
-              <th>Value (AUD)</th>
-              <th>Last Solds</th>
+              <th>Image</th>
+              <th>Condition</th>
+              <th>Value</th>
+              <th>Currency</th>
+              <th>Shipping</th>
+              <th>eBay Link</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => (
-              <tr key={idx}>
-                <td>{item.title}</td>
-                <td>{item.platform}</td>
-                <td>{item.year}</td>
-                <td>{item.category}</td>
-                <td><div><b>Median:</b> {item.median}<br/><b>Mean:</b> {item.mean}<br/><small style={{color: '#666'}}>min: {item.min} / max: {item.max}<br/>qty: {item.qty}{item.usedFallback ? ' (Fallback: no strong matches)' : ''}</small></div></td>
+            {results.map((item, i) => (
+              <tr key={i}>
+                <td>{item.product_title}</td>
                 <td>
-                  {item.solds ? (
-                    <a href={item.solds} target="_blank" rel="noopener noreferrer">
+                  {item.image ? (
+                    <img src={item.image} alt="" style={{ width: 80 }} />
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td>{item.condition || "—"}</td>
+                <td>{item.item_price?.value ?? "—"}</td>
+                <td>{item.item_price?.currency ?? "—"}</td>
+                <td>{item.shipping_cost || "—"}</td>
+                <td>
+                  {item.product_url ? (
+                    <a href={item.product_url} target="_blank" rel="noopener noreferrer">
                       View
                     </a>
                   ) : (
-                    '...'
+                    "—"
                   )}
                 </td>
               </tr>
