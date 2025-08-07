@@ -34,9 +34,14 @@ export default async function handler(req, res) {
 
   try {
     const { data: html } = await axios.get(proxyUrl);
-    const $ = cheerio.load(html);
+
+    // LOGGING: output first 4000 chars of fetched HTML to console
+    console.log('\n======= RAW SCRAPERAPI HTML (first 4000 chars) =======\n');
+    console.log(html.slice(0, 4000));
+    console.log('\n======= END RAW SCRAPERAPI HTML =======\n');
 
     // Only direct li.s-item children of ul.srp-results.srp-list.clearfix
+    const $ = cheerio.load(html);
     const lis = $('ul.srp-results.srp-list.clearfix > li.s-item').toArray();
 
     const items = [];
