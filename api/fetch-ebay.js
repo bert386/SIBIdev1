@@ -1,7 +1,6 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import * as fuzz from 'fuzzball';
 
 const BUNDLE_WORDS = [
   'lot', 'bundle', 'pick', 'collection', 'job lot', 'bulk', 'various', 'pick n mix', 'mixed'
@@ -10,11 +9,6 @@ const BUNDLE_WORDS = [
 function isBundleOrLot(title) {
   const lower = title.toLowerCase();
   return BUNDLE_WORDS.some(word => lower.includes(word));
-}
-
-function similarityScore(a, b) {
-  // Fuzzball ratio (0-100)
-  return fuzz.token_set_ratio(a, b);
 }
 
 export default async function handler(req, res) {
@@ -55,24 +49,17 @@ export default async function handler(req, res) {
         // Bundle/lot filtering (excluding "set")
         if (isBundleOrLot(title)) return;
 
-        // Title similarity (80%+)
-        const similarity = similarityScore(title, search);
-        if (similarity < 80) return;
-
         const priceMatch = priceText.replace(/[^\d.]/g, '');
         const price = parseFloat(priceMatch);
         if (isNaN(price) || price <= 0) return;
 
-        if (!items.some(i => i.title === title && i.price === price)) {
-          items.push({ title, price, link, similarity });
+        if (!items.some(i => i.title === title && i.price == price)) {
+          items.push({ title, price, link });
         }
         if (items.length >= 30) return false;
       });
       if (items.length >= 30) break;
     }
-
-    // Sort items by similarity (descending), then price
-    items.sort((a, b) => b.similarity - a.similarity || a.price - b.price);
 
     // Remove highest/lowest if 4+ remain
     let filtered = items;

@@ -15,8 +15,7 @@
     "react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.0.0",
     "axios": "^1.6.0",
-    "cheerio": "^1.0.0-rc.12",
-    "fuzzball": "^2.0.0"
+    "cheerio": "^1.0.0-rc.12"
   },
   "devDependencies": {
     "vite": "^4.5.0",
