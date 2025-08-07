@@ -1,6 +1,6 @@
-const axios = require("axios");
+import axios from 'axios';
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
   try {
     const { search } = req.body;
     const scraperApiKey = process.env.SCRAPERAPI_KEY;
