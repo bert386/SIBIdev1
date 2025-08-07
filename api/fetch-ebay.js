@@ -11,6 +11,15 @@ function isBundleOrLot(title) {
   return BUNDLE_WORDS.some(word => lower.includes(word));
 }
 
+function calcMedian(prices) {
+  if (!prices.length) return 0;
+  const sorted = prices.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0
+    ? sorted[mid]
+    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Only POST requests allowed' });
@@ -45,8 +54,6 @@ export default async function handler(req, res) {
         const link = $(el).find('.s-item__link').attr('href');
 
         if (!title || !priceText || !link) return;
-
-        // Bundle/lot filtering (excluding "set")
         if (isBundleOrLot(title)) return;
 
         const priceMatch = priceText.replace(/[^\d.]/g, '');
@@ -67,11 +74,18 @@ export default async function handler(req, res) {
       filtered = filtered.slice(1, -1);
     }
 
-    const average = filtered.length > 0
-      ? Math.round(filtered.reduce((sum, item) => sum + item.price, 0) / filtered.length)
-      : 0;
+    const pricesUsed = filtered.map(i => i.price);
+    const median = calcMedian(pricesUsed);
+    const min = pricesUsed.length ? Math.min(...pricesUsed) : 0;
+    const max = pricesUsed.length ? Math.max(...pricesUsed) : 0;
 
-    return res.status(200).json({ average, items: filtered });
+    return res.status(200).json({
+      median,
+      min,
+      max,
+      prices: pricesUsed,
+      items: filtered
+    });
   } catch (err) {
     console.error("❌ Scraping error:", err.message);
     return res.status(500).json({ message: 'Scraping failed' });

@@ -46,8 +46,10 @@ export default function App() {
         const ebayData = await ebayRes.json();
         console.log('📦 eBay Response:', ebayData);
 
-        item.value = ebayData.average ? `$${ebayData.average} AUD` : 'N/A';
-        item.solds = `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(item.search)}&_sop=13&LH_Sold=1&LH_Complete=1`;
+        item.median = ebayData.median ? `$${ebayData.median} AUD` : 'N/A';
+item.min = ebayData.min ? `$${ebayData.min} AUD` : '';
+item.max = ebayData.max ? `$${ebayData.max} AUD` : '';
+item.solds = `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(item.search)}&_sop=13&LH_Sold=1&LH_Complete=1`;
       } catch (scrapeErr) {
         console.error('❌ Failed to fetch eBay data:', scrapeErr);
         item.value = 'Scrape failed';
@@ -95,7 +97,7 @@ export default function App() {
                 <td>{item.platform}</td>
                 <td>{item.year}</td>
                 <td>{item.category}</td>
-                <td>{item.value}</td>
+                <td><div>{item.median}<br/><small style={{color: '#666'}}>min: {item.min} / max: {item.max}</small></div></td>
                 <td>
                   {item.solds ? (
                     <a href={item.solds} target="_blank" rel="noopener noreferrer">
