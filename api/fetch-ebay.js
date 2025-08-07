@@ -2,6 +2,10 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
+function isShopOnEbay(title) {
+  return title.toLowerCase().includes('shop on ebay');
+}
+
 function calcMedian(prices) {
   if (!prices.length) return 0;
   const sorted = prices.slice().sort((a, b) => a - b);
@@ -26,25 +30,65 @@ export default async function handler(req, res) {
   const ebayUrl = `https://www.ebay.com.au/sch/i.html?_nkw=${encoded}&_sop=13&LH_Sold=1&LH_Complete=1`;
 
   const scraperApiKey = process.env.SCRAPER_API_KEY;
-  // PATCHED: enable JS Rendering
   const proxyUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(ebayUrl)}&render=true`;
 
   try {
     const { data: html } = await axios.get(proxyUrl);
     const $ = cheerio.load(html);
 
-    const sItems = $('li.s-item').toArray();
-    const items = [];
-    for (const el of sItems) {
-      const title = $(el).find('.s-item__title').text().trim();
-      const priceText = $(el).find('.s-item__price').first().text().trim();
-      const link = $(el).find('.s-item__link').attr('href');
-      if (!title || !priceText || !link) continue;
-      const priceMatch = priceText.replace(/[^\d.]/g, '');
-      const price = parseFloat(priceMatch);
-      if (isNaN(price)) continue;
-      items.push({ title, price, link });
-      if (items.length >= 10) break;
+    // Find the <ul> containing sold results
+    const ul = $('ul.srp-results.srp-list.clearfix').first();
+    const lis = ul.children('li.s-item').toArray();
+
+    // Walk the <ul> in DOM order to split above/below the separator
+    let above = [], below = [];
+    let foundSeparator = false;
+    lis.forEach((el) => {
+      // The separator is a <div> sibling (but not a li), but we can detect in DOM order
+      // Find the immediate <li> before or after a "Results matching fewer words" div sibling
+      if (!foundSeparator) {
+        // Check if the next sibling is a <div> with the separator text
+        const next = $(el).next();
+        if (next.is('div') && next.text().trim() === "Results matching fewer words") {
+          foundSeparator = true;
+        }
+      }
+      if (!foundSeparator) {
+        above.push(el);
+      } else {
+        below.push(el);
+      }
+    });
+
+    // Remove "Shop on eBay" and limit counts
+    function extractItems(nodes, maxResults) {
+      const items = [];
+      for (const el of nodes) {
+        const title = $(el).find('.s-item__title').text().trim();
+        if (!title || isShopOnEbay(title)) continue;
+        const priceText = $(el).find('.s-item__price').first().text().trim();
+        const link = $(el).find('.s-item__link').attr('href');
+        if (!priceText || !link) continue;
+        const priceMatch = priceText.replace(/[^\d.]/g, '');
+        const price = parseFloat(priceMatch);
+        if (isNaN(price)) continue;
+        if (!items.some(i => i.title === title && i.price == price)) {
+          items.push({ title, price, link });
+        }
+        if (items.length >= maxResults) break;
+      }
+      return items;
+    }
+
+    let items = extractItems(above, 10);
+    let usedBelow = false, usedFallback = false;
+    if (!items.length) {
+      items = extractItems(below, 5);
+      usedBelow = !!items.length;
+      if (!items.length) {
+        items = extractItems(lis, 5);
+        usedFallback = !!items.length;
+      }
     }
 
     const pricesUsed = items.map(i => i.price);
@@ -60,7 +104,9 @@ export default async function handler(req, res) {
       max,
       prices: pricesUsed,
       items,
-      qty: pricesUsed.length
+      qty: pricesUsed.length,
+      usedBelow,
+      usedFallback
     });
   } catch (err) {
     return res.status(500).json({ message: 'Scraping failed' });
