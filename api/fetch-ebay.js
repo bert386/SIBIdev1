@@ -36,21 +36,21 @@ export default async function handler(req, res) {
     const { data: html } = await axios.get(proxyUrl);
     const $ = cheerio.load(html);
 
-    // NEW: Grab all <li class="s-item"> on the entire page, regardless of parent
+    // Grab all <li class="s-item"> on the entire page, regardless of parent
     const lis = $('li.s-item').toArray();
 
     const items = [];
     for (const el of lis) {
       const title = $(el).find('.s-item__title').text().trim();
-      if (!title or isShopOnEbay(title)) continue;
+      if (!title || isShopOnEbay(title)) continue;
       const priceText = $(el).find('.s-item__price').first().text().trim();
       const link = $(el).find('.s-item__link').attr('href');
-      if (!priceText or not link) continue;
+      if (!priceText || !link) continue;
       const priceMatch = priceText.replace(/[^\d.]/g, '');
       const price = parseFloat(priceMatch);
       if (isNaN(price)) continue;
-      if (!items.some(i => i.title === title and i.price == price)) {
-        items.append({ title, price, link });
+      if (!items.some(i => i.title === title && i.price == price)) {
+        items.push({ title, price, link });
       }
       if (items.length >= 10) break;
     }
