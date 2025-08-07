@@ -33,39 +33,43 @@ export default async function handler(req, res) {
   const scraperApiKey = process.env.SCRAPER_API_KEY;
   const proxyUrl = `http://api.scraperapi.com?api_key=${scraperApiKey}&url=${encodeURIComponent(ebayUrl)}`;
 
-  console.log("🔍 eBay Search URL via ScraperAPI:", proxyUrl);
-
   try {
     const { data: html } = await axios.get(proxyUrl);
-    console.log("🧪 HTML preview:", html.substring(0, 1000));
 
     if (html.includes("Pardon our interruption") || html.includes("To continue, please verify")) {
-      console.warn("🛑 Bot protection page received from eBay.");
       return res.status(500).json({ message: "Scraping blocked by eBay" });
     }
 
     const $ = cheerio.load(html);
-    // Find all li.s-item in DOM order
-    const allLis = $('li.s-item').toArray();
-    // Find separator index for "Results matching fewer words"
-    let separatorIndex = -1;
-    $('h3').each((i, el) => {
-      const heading = $(el).text().trim();
-      if (heading === "Results matching fewer words") {
-        // Find the first li.s-item that follows this h3
-        const nextLi = $(el).nextAll('li.s-item').get(0);
-        separatorIndex = allLis.findIndex(li => li === nextLi);
+    // Walk the result container in DOM order
+    let aboveNodes = [];
+    let belowNodes = [];
+    let allValidNodes = [];
+    let inFewerWords = false;
+
+    // Use the result list container (the parent of s-items and h3)
+    const resultContainer = $('#srp-river-results, .srp-results, .srp-river').first().length
+      ? $('#srp-river-results, .srp-results, .srp-river').first()
+      : $('body'); // fallback
+
+    resultContainer.children().each((_, el) => {
+      const tag = el.tagName || el.name;
+      const isLi = tag === 'li' && $(el).hasClass('s-item');
+      const isH3 = tag === 'h3' && $(el).text().trim() === "Results matching fewer words";
+
+      if (isH3) {
+        inFewerWords = true;
+        return;
+      }
+      if (isLi) {
+        if (inFewerWords) {
+          belowNodes.push(el);
+        } else {
+          aboveNodes.push(el);
+        }
+        allValidNodes.push(el);
       }
     });
-
-    let aboveNodes, belowNodes;
-    if (separatorIndex > -1) {
-      aboveNodes = allLis.slice(0, separatorIndex);
-      belowNodes = allLis.slice(separatorIndex);
-    } else {
-      aboveNodes = allLis;
-      belowNodes = [];
-    }
 
     function extractItems(nodes, maxResults) {
       const items = [];
@@ -89,9 +93,12 @@ export default async function handler(req, res) {
     let items = extractItems(aboveNodes, 10);
     let usedFallback = false;
     if (!items.length) {
-      // fallback: use first 5 below separator
       items = extractItems(belowNodes, 5);
-      usedFallback = true;
+      if (!items.length) {
+        // fallback: first 5 from all s-items
+        items = extractItems(allValidNodes, 5);
+        usedFallback = true;
+      }
     }
 
     const pricesUsed = items.map(i => i.price);
@@ -111,7 +118,6 @@ export default async function handler(req, res) {
       usedFallback
     });
   } catch (err) {
-    console.error("❌ Scraping error:", err.message);
     return res.status(500).json({ message: 'Scraping failed' });
   }
 }
