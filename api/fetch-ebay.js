@@ -2,13 +2,9 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-const BUNDLE_WORDS = [
-  'lot', 'bundle', 'pick', 'collection', 'job lot', 'bulk', 'various', 'pick n mix', 'mixed'
-];
-
-function isBundleOrLot(title) {
-  const lower = title.toLowerCase();
-  return BUNDLE_WORDS.some(word => lower.includes(word));
+function isAdOrShop(title) {
+  const t = title.toLowerCase();
+  return t.includes('shop on ebay') || t.includes('ad') || t === '';
 }
 
 function calcMedian(prices) {
@@ -54,7 +50,9 @@ export default async function handler(req, res) {
         const link = $(el).find('.s-item__link').attr('href');
 
         if (!title || !priceText || !link) return;
-        if (isBundleOrLot(title)) return;
+
+        // Exclude eBay ad/shop results
+        if (isAdOrShop(title)) return;
 
         const priceMatch = priceText.replace(/[^\d.]/g, '');
         const price = parseFloat(priceMatch);
@@ -63,18 +61,12 @@ export default async function handler(req, res) {
         if (!items.some(i => i.title === title && i.price == price)) {
           items.push({ title, price, link });
         }
-        if (items.length >= 30) return false;
+        if (items.length >= 10) return false;
       });
-      if (items.length >= 30) break;
+      if (items.length >= 10) break;
     }
 
-    // Remove highest/lowest if 4+ remain
-    let filtered = items;
-    if (filtered.length >= 4) {
-      filtered = filtered.slice(1, -1);
-    }
-
-    const pricesUsed = filtered.map(i => i.price);
+    const pricesUsed = items.map(i => i.price);
     const median = calcMedian(pricesUsed);
     const min = pricesUsed.length ? Math.min(...pricesUsed) : 0;
     const max = pricesUsed.length ? Math.max(...pricesUsed) : 0;
@@ -84,7 +76,7 @@ export default async function handler(req, res) {
       min,
       max,
       prices: pricesUsed,
-      items: filtered
+      items
     });
   } catch (err) {
     console.error("❌ Scraping error:", err.message);
