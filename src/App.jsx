@@ -1,103 +1,110 @@
-import React, { useState } from "react";
+
+import React, { useState } from 'react';
 
 export default function App() {
   const [file, setFile] = useState(null);
   const [items, setItems] = useState([]);
-  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingPrices, setFetchingPrices] = useState(false);
 
-  const handleFileChange = (e) => setFile(e.target.files[0]);
+  const handleUpload = async () => {
+    if (!file) return;
 
-  const handleAnalyse = async () => {
     setLoading(true);
-    setResults([]);
-    // Step 1: Upload image for item analysis
     const formData = new FormData();
-    formData.append("file", file);
-    const openaiRes = await fetch("/api/analyse-image", {
-      method: "POST",
-      body: formData,
-    });
-    const itemList = await openaiRes.json();
-    setItems(itemList);
+    formData.append('file', file);
 
-    // Step 2: For each identified item, get eBay sold data
-    const ebayResults = await Promise.all(
-      (Array.isArray(itemList)?itemList:[]).map(async (item) => {
-        try {
-          const ebayRes = await fetch("/api/fetch-ebay", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ search: item.search }),
-          });
-          const ebayJson = await ebayRes.json();
-          // Use the first sold item from new JSON structure, fallback to empty object
-          const sold = Array.isArray(ebayJson.soldItems) && ebayJson.soldItems.length > 0
-            ? ebayJson.soldItems[0]
-            : {};
-          return {
-            ...item,
-            ...sold,
-          };
-        } catch (e) { console.error("eBay fetch error:", e);
-          return { ...item, error: "Fetch failed" };
-        }
-      })
-    );
-    setResults(ebayResults);
+    try {
+      const res = await fetch('/api/analyse-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      setItems(data.items);
+    } catch (err) {
+      console.error('❌ Error:', err);
+    }
+
     setLoading(false);
   };
 
+  const handleFetchPrices = async () => {
+    setFetchingPrices(true);
+    const enriched = [...items];
+
+    for (let i = 0; i < enriched.length; i++) {
+      const item = enriched[i];
+      try {
+        console.log('🔄 Fetching eBay pricing for:', item.search);
+        const ebayRes = await fetch('/api/fetch-ebay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ search: item.search }),
+        });
+
+        const ebayData = await ebayRes.json();
+        console.log('📦 eBay Response:', ebayData);
+
+        item.median = ebayData.median ? `$${ebayData.median} AUD` : 'N/A';
+item.min = ebayData.min ? `$${ebayData.min} AUD` : '';
+item.max = ebayData.max ? `$${ebayData.max} AUD` : '';
+item.solds = `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(item.search)}&_sop=13&LH_Sold=1&LH_Complete=1`;
+      } catch (scrapeErr) {
+        console.error('❌ Failed to fetch eBay data:', scrapeErr);
+        item.value = 'Scrape failed';
+      }
+    }
+
+    setItems(enriched);
+    setFetchingPrices(false);
+  };
+
   return (
-    <div style={{ margin: 32, fontFamily: "Arial" }}>
+    <div style={{ padding: 20 }}>
       <h1>SIBI – Should I Buy It</h1>
-      <input type="file" onChange={handleFileChange} />
-      <button onClick={handleAnalyse} disabled={!file || loading}>
-        {loading ? "Analysing..." : "Start"}
+      <p>Version: v1.4.9 (Sequential Fix)</p>
+      <input type="file" accept="image/*" onChange={e => setFile(e.target.files[0])} />
+      <button onClick={handleUpload} disabled={loading || !file} style={{ marginLeft: 10 }}>
+        Start Analysis
       </button>
-      <hr />
-      {results.length > 0 && (
-        <table border="1" cellPadding="8">
+
+      {loading && <p>🔄 Analysing image...</p>}
+      {items.length > 0 && !loading && <p>✅ Analysis complete</p>}
+
+      {items.length > 0 && !loading && (
+        <button onClick={handleFetchPrices} disabled={fetchingPrices} style={{ marginTop: 10 }}>
+          {fetchingPrices ? 'Fetching Prices…' : 'Fetch eBay Prices'}
+        </button>
+      )}
+
+      {items.length > 0 && (
+        <table border="1" cellPadding="6" style={{ marginTop: 20 }}>
           <thead>
             <tr>
               <th>Title</th>
               <th>Platform</th>
               <th>Year</th>
               <th>Category</th>
-              <th>Sold Price</th>
-              <th>Currency</th>
-              <th>eBay Link</th>
+              <th>Value (AUD)</th>
+              <th>Last Solds</th>
             </tr>
           </thead>
           <tbody>
-            {(Array.isArray(results)?results:[]).map((item, i) => (
-              <tr key={i}>
-                <td>{item.product_title || item.title || "—"}</td>
-                <td>{item.platform || "—"}</td>
-                <td>{item.year || "—"}</td>
-                <td>{item.category || "—"}</td>
+            {(Array.isArray(items)?items:[]).map((item, idx) => (
+              <tr key={idx}>
+                <td>{item.title}</td>
+                <td>{item.platform}</td>
+                <td>{item.year}</td>
+                <td>{item.category}</td>
+                <td><div><b>Median:</b> {item.median}<br/><b>Mean:</b> {item.mean}<br/><small style={{color: '#666'}}>min: {item.min} / max: {item.max}<br/>qty: {item.qty}{item.usedFallback ? ' (Fallback: no strong matches)' : ''}</small></div></td>
                 <td>
-                  {item.item_price?.value ||
-                    item.price ||
-                    item.soldPrice ||
-                    "—"}
-                </td>
-                <td>
-                  {item.item_price?.currency ||
-                    item.currency ||
-                    "—"}
-                </td>
-                <td>
-                  {item.product_url || item.link ? (
-                    <a
-                      href={item.product_url || item.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
+                  {item.solds ? (
+                    <a href={item.solds} target="_blank" rel="noopener noreferrer">
                       View
                     </a>
                   ) : (
-                    "—"
+                    '...'
                   )}
                 </td>
               </tr>
