@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="slogan">Should I Buy It</div>
         </header>
         <main className="container">{children}</main>
-        <footer className="footer">v0.1.4</footer>
+        <footer className="footer">v0.1.5</footer>
       </body>
     </html>
   );

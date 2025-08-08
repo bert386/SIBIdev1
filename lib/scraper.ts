@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { getScraperKey as requireEnv } from './env';
 
 export function buildEbaySoldUrl(query: string) {
   const params = new URLSearchParams({
@@ -18,8 +19,8 @@ export function buildEbayActiveUrl(query: string) {
 
 export function buildScraperUrl(targetUrl: string) {
   const base = process.env.SCRAPER_BASE || 'https://api.scraperapi.com';
-  const key = process.env.SCRAPER_API_KEY;
-  if (!key) throw new Error('SCRAPER_API_KEY is not set');
+  const { value: key, source } = requireEnv();
+  console.log(`🔐 Using scraper key from ${source}`);
   const u = new URL(base);
   if (u.hostname.includes('scraperapi.com')) {
     // ScraperAPI style
