@@ -1,8 +1,9 @@
-import { openai, OPENAI_MODEL } from '@/lib/openai';
+import { getOpenAI, OPENAI_MODEL } from '@/lib/openai';
 import { NextResponse } from 'next/server';
 import type { VisionResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
@@ -39,7 +40,7 @@ Also return lot_summary (1-2 sentences).
 Return ONLY valid JSON with keys: lot_summary, items (array of the above).`;
 
     console.log('🧠 Calling OpenAI for vision...');
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: OPENAI_MODEL,
       response_format: { type: 'json_object' as const },
       messages: [

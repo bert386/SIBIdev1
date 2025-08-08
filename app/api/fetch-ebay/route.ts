@@ -3,6 +3,7 @@ import { buildEbayActiveUrl, buildEbaySoldUrl, buildScraperUrl, parseSoldHtml, a
 import type { VisionItem, EbayResult } from '@/lib/types';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 type Body = { items: VisionItem[] };
 
