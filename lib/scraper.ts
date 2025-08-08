@@ -138,3 +138,14 @@ export function average(nums: number[]): number | null {
   const s = nums.reduce((a, b) => a + b, 0);
   return Math.round((s / nums.length) * 100) / 100;
 }
+
+(nums: number[]): number | null {
+  if (!nums.length) return null;
+  const a = nums.slice().sort((x, y) => x - y);
+  const mid = Math.floor(a.length / 2);
+  if (a.length % 2 === 0) {
+    return Math.round(((a[mid - 1] + a[mid]) / 2) * 100) / 100;
+  } else {
+    return a[mid];
+  }
+}
