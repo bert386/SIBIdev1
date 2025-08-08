@@ -13,6 +13,20 @@ export default function UploadPanel({ onVision, onEbay }: Props) {
   const [busy, setBusy] = useState(false);
   const [identified, setIdentified] = useState<any[]>([]);
   const [note, setNote] = useState('');
+async function fetchJSON(url: string, options: RequestInit = {}) {
+  const res = await fetch(url, options as any);
+  const text = await res.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch (e) {
+    throw new Error(`HTTP ${res.status} ${res.statusText}: ${(text || '').slice(0,200)}`);
+  }
+  if (!res.ok) {
+    const msg = (data && (data.error || data.message)) ? (data.error || data.message) : `HTTP ${res.status} ${res.statusText}`;
+    throw new Error(msg);
+  }
+  return { data, res };
+}
+
   const [progress, setProgress] = useState(0);
 
   const handleFiles = (files: FileList | null) => {
@@ -33,7 +47,7 @@ export default function UploadPanel({ onVision, onEbay }: Props) {
       setIdentified((json as VisionResult).items || []);
       setNote(`Identified ${(json as VisionResult).items?.length || 0} items`);
     } catch (e:any) {
-      alert(e.message);
+      setNote(`Error: ${e.message}`); console.error(e);
     } finally {
       setBusy(false); setProgress(100);
     }
@@ -57,7 +71,7 @@ export default function UploadPanel({ onVision, onEbay }: Props) {
       setNote(`Fetched eBay data for ${(json as EbayResult[]).length} items`);
       setProgress(100);
     } catch (e:any) {
-      alert(e.message);
+      setNote(`Error: ${e.message}`); console.error(e);
     } finally {
       setBusy(false);
     }
@@ -70,7 +84,7 @@ const chunk = <T,>(arr: T[], size: number) => {
 };
 
 const getEbayBatched = async (items: VisionItem[]) => {
-  const BATCH_SIZE = 2; // keep requests <60s
+  const BATCH_SIZE = 1; // keep requests <60s
   if (!items?.length) return;
   setBusy(true); setProgress(0); setNote('');
   try {

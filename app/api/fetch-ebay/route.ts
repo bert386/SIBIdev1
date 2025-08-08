@@ -56,14 +56,20 @@ async function processItem(item: VisionItem, idx: number, total: number): Promis
 }
 
 export async function POST(req: Request) {
+  console.log('🕷️ /fetch-ebay invoked');
   try {
     const body = await req.json() as Body;
+    const total = body?.items?.length || 0;
+    console.log(`🕷️ Received ${total} items`);
+    const MAX_ITEMS_PER_CALL = Number(process.env.SCRAPE_MAX_ITEMS_PER_CALL || 2);
+    const sliceEnd = Math.min(total, MAX_ITEMS_PER_CALL);
+    const workItems = (body?.items || []).slice(0, sliceEnd);
     if (!body?.items?.length) {
       return NextResponse.json({ error: 'No items provided' }, { status: 400 });
     }
 
     // Small-batch concurrency (2 at a time) without external deps
-    const items = body.items;
+    const items = workItems;
     const results: EbayResult[] = [];
     const batchSize = Number(process.env.SCRAPE_CONCURRENCY || 2);
     const delayMs = Number(process.env.SCRAPE_DELAY_MS || 300);
@@ -74,7 +80,10 @@ export async function POST(req: Request) {
       await sleep(delayMs);
     }
 
-    return NextResponse.json(results);
+    const partial = (total > items.length);
+    const res = NextResponse.json(results);
+    if (partial) res.headers.set('x-sibi-next', String(items.length));
+    return res;
   } catch (err: any) {
     console.error('⚠️ fetch-ebay error:', err?.message || err);
     return NextResponse.json({ error: err?.message || 'Internal error' }, { status: 500 });
