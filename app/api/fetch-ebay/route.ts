@@ -15,8 +15,51 @@ const OUTLIER_LOW = Number(process.env.SIBI_OUTLIER_LOW || 0.3);
 const OUTLIER_HIGH = Number(process.env.SIBI_OUTLIER_HIGH || 2.0);
 
 function buildQuery(item: VisionItem): string {
-  if (item.brand?.toLowerCase() === 'lego' && item.set_number) {
-    const name = item.official_name ? ` ${item.official_name}` : '';
+  // Prefer LEGO set number when present
+  if ((item.brand || '').toLowerCase() === 'lego' && item.set_number) {
+    const name = item.official_name ? ` ${item.official_name}
+
+function median(nums: number[]): number | null {
+  if (!nums.length) return null;
+  const a = nums.slice().sort((x,y)=>x-y);
+  const mid = Math.floor(a.length/2);
+  return a.length % 2 ? a[mid] : (a[mid-1] + a[mid]) / 2;
+}
+function trimmedMedian(nums: number[]): number | null {
+  if (nums.length >= 5) {
+    const a = nums.slice().sort((x,y)=>x-y);
+    a.shift(); a.pop();
+    return median(a);
+  }
+  return median(nums);
+}
+function applyPriceFilters(rawPrices: number[], gpt?: number|null): {filtered:number[], mode:string} {
+  let prices = rawPrices.filter(p => p !== 20 && p !== 20.0);
+  const hasGpt = typeof gpt === 'number' && isFinite(gpt as number) && (gpt as number) > 0;
+  if (hasGpt) {
+    const lo = Number(process.env.SIBI_OUTLIER_LOW || 0.3) * (gpt as number);
+    const hi = Number(process.env.SIBI_OUTLIER_HIGH || 2.0) * (gpt as number);
+    const bounded = prices.filter(p => p >= lo && p <= hi);
+    if (bounded.length >= 3) return { filtered: bounded.slice(0, 10), mode: 'gpt-bounds' };
+    // fallback: trimmed
+  }
+  const nonAds = prices.slice(0, 25);
+  const tm = trimmedMedian(nonAds);
+  if (tm == null) return { filtered: [], mode: 'empty' };
+  // keep values within 0.4x..2.5x of trimmed median
+  const bounded = nonAds.filter(p => p >= tm*0.4 && p <= tm*2.5).slice(0, 10);
+  return { filtered: bounded, mode: 'fallback-trimmed' };
+}
+
+` : '';
+    return `LEGO ${item.set_number}${name}`.trim();
+  }
+  const parts: string[] = [];
+  if (item.title) parts.push(item.title);
+  if (item.year) parts.push(`(${item.year})`);
+  if (item.platform) parts.push(String(item.platform));
+  return (item.search || parts.join(' ')).trim();
+}` : '';
     return `LEGO ${item.set_number}${name}`.trim();
   }
   const parts: string[] = [];
@@ -72,7 +115,7 @@ async function processItem(item: VisionItem, idx: number, total: number): Promis
       title: query,
       sold_prices_aud: filtered,
       sold_links: [],
-      avg_sold_aud: status==='OK' ? med : null,
+      avg_sold_aud: (medianValue ?? null),
       sold_90d: soldCount,
       available_now: activeInfo.count,
       sold_search_link: soldUrl,
@@ -84,7 +127,7 @@ async function processItem(item: VisionItem, idx: number, total: number): Promis
       title: query,
       sold_prices_aud: [],
       sold_links: [],
-      avg_sold_aud: null,
+      avg_sold_aud: (medianValue ?? null),
       sold_90d: 0,
       available_now: null,
       sold_search_link: soldUrl,
