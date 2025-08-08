@@ -92,7 +92,7 @@ const getEbayBatched = async (items: VisionItem[]) => {
     const all: EbayResult[] = [];
     for (let i = 0; i < groups.length; i++) {
       const group = groups[i];
-      setNote(\`Fetching eBay (\${i+1}/\${groups.length})...\`);
+      setNote(\`Fetching eBay (${i+1}/${groups.length})...\`);
       // simple staged progress per batch
       setProgress(Math.round(((i) / groups.length) * 95));
       const res = await fetch('/api/fetch-ebay', {
@@ -106,7 +106,7 @@ const getEbayBatched = async (items: VisionItem[]) => {
     }
     onEbay(all);
     (window as any).__sibi_ebay = all;
-    setNote(\`Fetched eBay data for \${all.length} items\`);
+    setNote(\`Fetched eBay data for ${all.length} items\`);
     setProgress(100);
   } catch (e:any) {
     alert(e.message);
