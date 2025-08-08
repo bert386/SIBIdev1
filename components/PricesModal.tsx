@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useEffect } from 'react';
 
-export default function PricesModal({ id, title, prices, links }:{ id:string, title:string, prices:number[], links:string[] }) {
+export default function PricesModal({ id, title, prices, links, note }:{ id:string, title:string, prices:number[], links:string[], note?: string }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(()=>{
     (window as any)[`open_${id}`] = () => ref.current?.showModal();
@@ -9,7 +9,8 @@ export default function PricesModal({ id, title, prices, links }:{ id:string, ti
   }, [id]);
   return (
     <dialog ref={ref}>
-      <h3 style={{marginTop:0}}>{title} — Last {prices.length} sold</h3>
+      <h3 style={{marginTop:0}}>{title} — Last {prices.length} (filtered) sold</h3>
+      {note && <div style={{color:'var(--muted)'}}>{note}</div>}
       <ul>
         {prices.map((p,i)=>(
           <li key={i}><a href={links[i]} target="_blank">${p}</a></li>

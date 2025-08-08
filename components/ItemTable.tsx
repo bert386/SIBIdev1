@@ -44,7 +44,7 @@ export default function ItemTable({ vision, ebay }: { vision?: VisionResult, eba
                   {e?.sold_prices_aud?.length ? (
                     <>
                       <button className="btn secondary" onClick={()=> (window as any)[`open_${modalId}`]()}>eBay last solds</button>
-                      <PricesModal id={modalId} title={it.title} prices={e.sold_prices_aud} links={e.sold_links} />
+                      <PricesModal id={modalId} title={it.title} prices={e.sold_prices_aud} links={e.sold_links} note={(e.raw_sold_count!=null && e.filtered_count!=null)?`Filtered ${e.filtered_count} of ${e.raw_sold_count}`:undefined} />
                     </>
                   ) : (e?.sold_search_link ? <a className="btn secondary" href={e.sold_search_link} target="_blank">View</a> : null)}
                 </td>

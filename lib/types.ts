@@ -21,4 +21,7 @@ export type EbayResult = {
   available_now: number | null;
   sold_search_link: string;
   status: 'OK'|'NRS';
+  raw_sold_count?: number | null;
+  filtered_count?: number | null;
+  active_parse_method?: string | null;
 };
