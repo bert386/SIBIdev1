@@ -39,6 +39,7 @@ export default function UploadPanel({ onVision, onEbay }: Props) {
     }
   };
 
+  // legacy single-call kept for reference
   const getEbay = async (items: VisionItem[]) => {
     setBusy(true); setProgress(0);
     try {
@@ -62,13 +63,51 @@ export default function UploadPanel({ onVision, onEbay }: Props) {
     }
   };
 
+const chunk = <T,>(arr: T[], size: number) => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+};
+
+const getEbayBatched = async (items: VisionItem[]) => {
+  const BATCH_SIZE = 2; // keep requests <60s
+  if (!items?.length) return;
+  setBusy(true); setProgress(0); setNote('');
+  try {
+    const groups = chunk(items, BATCH_SIZE);
+    const all: EbayResult[] = [];
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i];
+      setNote(\`Fetching eBay (\${i+1}/\${groups.length})...\`);
+      // simple staged progress per batch
+      setProgress(Math.round(((i) / groups.length) * 95));
+      const res = await fetch('/api/fetch-ebay', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ items: group }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Fetch eBay failed');
+      all.push(...json as EbayResult[]);
+    }
+    onEbay(all);
+    (window as any).__sibi_ebay = all;
+    setNote(\`Fetched eBay data for \${all.length} items\`);
+    setProgress(100);
+  } catch (e:any) {
+    alert(e.message);
+  } finally {
+    setBusy(false);
+  }
+};
+
   return (
     <div className="panel">
       <div className="row">
         <input ref={inputRef} type="file" multiple accept="image/*" onChange={(e)=>handleFiles(e.target.files)} />
         <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
           <button className="btn" onClick={analyse} disabled={busy || images.length===0}>Analyse Image</button>
-          <button className="btn secondary" onClick={()=>getEbay((window as any).__sibi_items || [])} disabled={busy || identified.length===0}>Get eBay Data</button>
+          <button className="btn secondary" onClick={()=>getEbayBatched(identified)} disabled={busy || identified.length===0}>Get eBay Data</button>
         </div>
         <div className="progress"><div style={{ width: `${progress}%` }} /></div>
       

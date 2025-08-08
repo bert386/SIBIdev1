@@ -65,8 +65,8 @@ export async function POST(req: Request) {
     // Small-batch concurrency (2 at a time) without external deps
     const items = body.items;
     const results: EbayResult[] = [];
-    const batchSize = Number(process.env.SCRAPE_CONCURRENCY || 1);
-    const delayMs = Number(process.env.SCRAPE_DELAY_MS || 1200);
+    const batchSize = Number(process.env.SCRAPE_CONCURRENCY || 2);
+    const delayMs = Number(process.env.SCRAPE_DELAY_MS || 300);
     for (let i = 0; i < items.length; i += batchSize) {
       const slice = items.slice(i, i + batchSize);
       const batch = await Promise.all(slice.map((it, j) => processItem(it, i + j, items.length)));
