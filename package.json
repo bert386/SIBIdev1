@@ -1,6 +1,6 @@
 {
   "name": "sibi",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,6 @@
     "cheerio": "^1.0.0-rc.12",
     "next": "14.2.4",
     "openai": "^4.53.0",
-    "p-limit": "^5.0.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "zod": "^3.23.8"
