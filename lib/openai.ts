@@ -1,15 +1,10 @@
 import OpenAI from 'openai';
-
-export const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
-
-/**
- * Lazily create an OpenAI client at runtime only.
- * Avoids throwing during Next.js build when env vars aren't available.
- */
-export function getOpenAI() {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) {
-    throw new Error('OPENAI_API_KEY is not set');
-  }
-  return new OpenAI({ apiKey: key });
+export const OPENAI_MODEL = process.env.SIBI_VISION_MODEL || 'gpt-4o';
+let _client: OpenAI | null = null;
+export function getOpenAI(): OpenAI {
+  if (_client) return _client;
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY not set');
+  _client = new OpenAI({ apiKey });
+  return _client;
 }

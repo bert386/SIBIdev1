@@ -1,42 +1,30 @@
-'use client';
-import type { VisionResult, EbayResult } from '@/lib/types';
+import type { VisionItem, EbayResult } from '@/lib/types';
 
-export default function TopThree({ vision, ebay }: { vision?: VisionResult, ebay?: EbayResult[] }) {
-  const items = vision?.items || [];
-  let combined = items.map(i => ({
-    ...i,
-    ebay: (ebay||[]).find(e => e.title === (i.search || i.title)),
-  }));
-  combined.sort((a:any,b:any) => {
-    const av = a.ebay?.avg_sold_aud ?? a.gpt_value_aud ?? 0;
-    const bv = b.ebay?.avg_sold_aud ?? b.gpt_value_aud ?? 0;
-    return bv - av;
-  });
-
-  const top3 = combined.slice(0,3);
-
+export default function TopThree({ items, ebay, status }:{ items:VisionItem[], ebay:EbayResult[], status:'idle'|'analysing'|'fetching'|'done' }){
+  const done = status==='done' && ebay.length === items.length;
+  const score = (i:number) => done ? (ebay[i]?.avg_sold_aud || 0) : (items[i]?.gpt_value_aud || 0);
+  const ranked = items.map((_,i)=>({i, s: score(i)})).sort((a,b)=> b.s-a.s).slice(0,3);
   return (
-    <div className="card">
-      <div className="section-title">Top 3 Items</div>
-      {top3.length === 0 ? <div>No data yet.</div> : (
-        <div style={{ display:'grid', gap:12 }}>
-          {top3.map((it:any, idx:number) => (
-            <div key={idx} className="panel" style={{background:'transparent'}}>
-              <div style={{ fontWeight:800 }}>{it.title} {it.year ? `(${it.year})` : ''} {it.platform ? `• ${it.platform}` : ''}</div>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:6 }}>
-                <span className="badge">Avail: {it.ebay?.available_now ?? '—'}</span>
-                <span className="badge">Sold: {it.ebay?.sold_90d ?? '—'}</span>
-                <span className="badge">$GPT: {it.gpt_value_aud ?? '—'}</span>
-                <span className="badge">$eBay: {it.ebay?.avg_sold_aud ?? 'NRS'}</span>
-              </div>
-              <div className="prices" style={{marginTop:6}}>
-                {(it.ebay?.sold_prices_aud || []).map((p:number, i:number) => <span key={i}>${p}</span>)}
-              </div>
-              {it.ebay?.sold_search_link && <a className="btn secondary" style={{marginTop:8, display:'inline-block'}} href={it.ebay.sold_search_link} target="_blank">View Solds</a>}
+    <div className="grid sm:grid-cols-3 gap-3">
+      {ranked.map(({i})=>{
+        const e = ebay[i];
+        const ebayCell = e ? (e.status==='NRS' ? 'NRS' : formatAud(e.avg_sold_aud||0)) : (status==='fetching'?'—':'—');
+        const avail = e?.available_now ?? (status==='fetching'?'—':'—');
+        const sold  = e?.sold_90d      ?? (status==='fetching'?'—':'—');
+        return (
+          <div key={i} className="rounded-lg border bg-white/5 p-3">
+            <div className="font-medium text-sm mb-1">{items[i].title}</div>
+            <div className="flex gap-2 text-xs">
+              <Badge label="Avail" value={String(avail)} />
+              <Badge label="Sold" value={String(sold)} />
+              <Badge label="$GPT" value={items[i].gpt_value_aud==null?'—':formatAud(items[i].gpt_value_aud)} />
+              <Badge label="$eBay" value={ebayCell} />
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        );
+      })}
     </div>
   );
 }
+function Badge({label, value}:{label:string, value:string}){ return <div className="px-2 py-1 rounded bg-black/30">{label}: {value}</div>; }
+function formatAud(n:number){ return n.toLocaleString('en-AU',{ style:'currency', currency:'AUD' }); }

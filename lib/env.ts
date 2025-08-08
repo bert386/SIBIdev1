@@ -1,15 +1,12 @@
 export function getScraperKey(): { value: string, source: string } {
-  const candidates = ['SCRAPER_API_KEY', 'SCRAPER_KEY', 'SCRAPERAPI_KEY'];
-  for (const name of candidates) {
-    const raw = process.env[name];
-    if (raw && raw.trim().length) {
-      return { value: raw, source: name };
-    }
+  const names = ['SCRAPER_API_KEY','SCRAPER_KEY','SCRAPERAPI_KEY'];
+  for (const n of names){
+    const v = process.env[n];
+    if (v && v.trim().length) return { value: v, source: n };
   }
   throw new Error('SCRAPER_API_KEY is not set');
 }
-
 export function hasEnv(name: string): boolean {
-  const raw = process.env[name];
-  return !!(raw && raw.trim().length);
+  const v = process.env[name];
+  return !!(v && v.trim().length);
 }

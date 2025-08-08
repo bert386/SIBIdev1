@@ -1,94 +1,109 @@
-import { getOpenAI, OPENAI_MODEL } from '@/lib/openai';
 import { NextResponse } from 'next/server';
-import type { VisionResult } from '@/lib/types';
+import { getOpenAI, OPENAI_MODEL } from '@/lib/openai';
+import type { VisionResult, VisionItem } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: Request) {
-  try {
+function systemPrompt(){
+  return `You are an expert item evaluator for eBay bulk lots (AU market).
+Return STRICT JSON only with:
+{
+  "lot_summary": "short sentence",
+  "items": [
+    {
+      "title": "...",                 // exact item name
+      "platform": "Wii/DVD/PS3/etc",  // or null
+      "category": "dvd|vhs|game|toy|lego|book|electronics|other",
+      "year": 2008,                   // or null
+      "gpt_value_aud": 12,            // integer AUD (no cents)
+      "search": "Title (Year) Platform",
+
+      "brand": "LEGO",
+      "theme": "Botanical",
+      "set_number": "10281",
+      "official_name": "Bonsai Tree",
+      "pieces": 878,
+      "condition": "sealed|new|used",
+      "quantity": 1
+    }
+  ]
+}
+Rules:
+- Create DISTINCT, realistic gpt_value_aud per item (do NOT reuse the same value).
+- Prefer exact identification: for LEGO include set_number + official_name; for video games include platform and year; for DVDs include series/season.
+- Build the search string to be highly discriminative. Use: LEGO {set_number} {official_name} when available.`;
+}
+
+export async function POST(req: Request){
+  try{
     const form = await req.formData();
     const files = form.getAll('images');
-    if (!files || files.length === 0) {
-      return NextResponse.json({ error: 'No images uploaded' }, { status: 400 });
-    }
+    if (!files || files.length===0) return NextResponse.json({ error:'No images uploaded' }, { status: 400 });
 
-    // Build image parts for chat
-    const parts: any[] = [
-      { type: 'text', text: 'Analyze these images and return strict JSON.' }
-    ];
-
-    for (const f of files) {
+    const parts: any[] = [{ type:'text', text: systemPrompt() }];
+    for (const f of files){
       if (!(f instanceof File)) continue;
-      const arrayBuffer = await f.arrayBuffer();
-      const b64 = Buffer.from(arrayBuffer).toString('base64');
-      const mime = f.type || 'image/png';
-      parts.push({
-        type: 'image_url',
-        image_url: { url: `data:${mime};base64,${b64}` }
-      });
+      const b = Buffer.from(await (f as File).arrayBuffer()).toString('base64');
+      parts.push({ type:'input_image', image_url: { url: `data:${(f as File).type};base64,${b}` } });
     }
 
-    const system = `You are an expert item evaluator for eBay bulk lots.
-Assign **realistic and varied** values — do NOT give the same value to multiple items; consider title, platform, series/season numbers, box set vs single, disc count hints, and relative demand.
-Identify each distinct item with keys:
-- title (string)
-- platform (string|null)
-- category: one of [game,dvd,vhs,book,comic,toy,diecast,other]
-- year (number|null)
-- gpt_value_aud (number|null) — your estimated value in AUD
-- search (string) — a concise query INCLUDING title, year, and platform when available, e.g. "Rayman Raving Rabbids (2006) Wii game".
-Also return lot_summary (1-2 sentences).
-Provide realistic, non-identical 'gpt_value_aud' per item (do not reuse the same value).
-Return ONLY valid JSON with keys: lot_summary, items (array of the above). Use integer dollars for gpt_value_aud (no cents).`;
-
-    console.log('🧠 Calling OpenAI for vision...');
     const completion = await getOpenAI().chat.completions.create({
       model: OPENAI_MODEL,
-      response_format: { type: 'json_object' as const },
+      response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: parts as any }
+        { role: 'system', content: 'Return ONLY valid JSON.' },
+        { role: 'user', content: parts }
       ],
       temperature: 0.4,
     });
-
     const raw = completion.choices?.[0]?.message?.content || '{}';
-    console.log('🧠 Raw OpenAI result:', raw.slice(0, 500));
     const json = JSON.parse(raw) as VisionResult;
-    console.log('✅ Items identified:', json.items?.length || 0);
-    json.items?.forEach((it, i)=> console.log(`🧠 item#${i+1}:`, it.search || it.title));
-    json.items = json.items?.map(it => ({
-      ...it,
-      platform: it.platform ?? null,
-      year: it.year ?? null,
-      gpt_value_aud: it.gpt_value_aud ?? null,
-    })) || [];
 
-    
-    // Optional fallback: if all GPT values identical, and SIBI_JITTER_GPT_VALUES==='true', apply tiny offsets for UX clarity.
-    try {
-      const jitterEnabled = process.env.SIBI_JITTER_GPT_VALUES === 'true';
-      const vals = (json.items || []).map(i => i.gpt_value_aud).filter(v => typeof v === 'number') as number[];
-      const unique = new Set(vals);
-      if (jitterEnabled && vals.length > 1 && unique.size <= 1) {
-        json.items = json.items.map((it, idx) => {
-          if (typeof it.gpt_value_aud === 'number') {
-            const deltaPattern = [-2, -1, 0, 1, 2, -1, 1, -2, 2, 0];
-            const delta = deltaPattern[idx % deltaPattern.length];
-            it.gpt_value_aud = Math.max(1, it.gpt_value_aud + delta);
-          }
-          return it;
-        });
-        console.log('🧠 Applied jitter fallback to GPT values (env:SIBI_JITTER_GPT_VALUES=true)');
+    json.items = (json.items||[]).map((it:any)=>({
+      title: it.title,
+      platform: it.platform ?? null,
+      category: it.category ?? null,
+      year: (typeof it.year==='number') ? it.year : null,
+      gpt_value_aud: (typeof it.gpt_value_aud==='number') ? Math.round(it.gpt_value_aud) : null,
+      search: it.search || null,
+      brand: it.brand || null,
+      theme: it.theme || null,
+      set_number: it.set_number || null,
+      official_name: it.official_name || null,
+      pieces: (typeof it.pieces==='number') ? it.pieces : null,
+      condition: it.condition || null,
+      quantity: (typeof it.quantity==='number') ? it.quantity : 1,
+    }));
+
+    // simple enrichment if all GPT values equal
+    const values = json.items.map(i=>i.gpt_value_aud).filter(v=>typeof v==='number') as number[];
+    const uniqueVals = new Set(values);
+    if (uniqueVals.size<=1 && json.items.length > 1){
+      const enrich = await getOpenAI().chat.completions.create({
+        model: OPENAI_MODEL,
+        response_format: { type:'json_object' },
+        messages: [
+          { role:'system', content: 'Adjust gpt_value_aud so each item has a distinct realistic integer AUD price. Keep same array length and order.' },
+          { role:'user', content: JSON.stringify({ items: json.items }) }
+        ],
+        temperature: 0.4,
+      });
+      const raw2 = enrich.choices?.[0]?.message?.content || '{}';
+      const fixed = JSON.parse(raw2) as { items:any[] };
+      if (Array.isArray(fixed.items) && fixed.items.length===json.items.length){
+        json.items = json.items.map((it,idx)=>({
+          ...it,
+          gpt_value_aud: (typeof fixed.items[idx]?.gpt_value_aud==='number') ? Math.round(fixed.items[idx].gpt_value_aud) : it.gpt_value_aud,
+          search: fixed.items[idx]?.search || it.search
+        }));
       }
-    } catch {}
-    // Log each item clearly
-    (json.items || []).forEach((it, i) => console.log(`🧠 item#${i+1}:`, { search: it.search || it.title, gpt_value_aud: it.gpt_value_aud }));
-    
+    }
+
+    console.log('✅ Items identified:', json.items?.length || 0);
     return NextResponse.json(json);
-  } catch (err: any) {
-    console.error('⚠️ analyse-image error:', err?.message || err);
-    return NextResponse.json({ error: err?.message || 'Internal error' }, { status: 500 });
+  }catch(e:any){
+    console.error(e);
+    return NextResponse.json({ error: e?.message || 'error' }, { status: 500 });
   }
 }

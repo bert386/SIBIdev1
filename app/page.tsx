@@ -1,31 +1,34 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import UploadPanel from '@/components/UploadPanel';
 import Overview from '@/components/Overview';
 import TopThree from '@/components/TopThree';
 import ItemTable from '@/components/ItemTable';
-import type { VisionResult, EbayResult } from '@/lib/types';
+import type { VisionItem, VisionResult, EbayResult } from '@/lib/types';
 
-export default function Page() {
-  const [vision, setVision] = useState<VisionResult>();
-  const [ebay, setEbay] = useState<EbayResult[]>();
+type FetchStatus = 'idle'|'analysing'|'fetching'|'done';
+
+export default function Page(){
+  const [items, setItems] = useState<VisionItem[]>([]);
+  const [ebay, setEbay] = useState<EbayResult[]>([]);
+  const [status, setStatus] = useState<FetchStatus>('idle');
+  const lotIdRef = useRef(0);
 
   const onVision = (v: VisionResult) => {
-    setVision(v);
-    (window as any).__sibi_items = v.items;
+    lotIdRef.current += 1;
+    setItems(v.items || []);
+    setEbay([]);
+    setStatus('idle');
   };
-  const onEbay = (r: EbayResult[]) => setEbay(r);
+  const onFetchStart = () => setStatus('fetching');
+  const onEbay = (r: EbayResult[]) => { setEbay(r); setStatus('done'); };
 
   return (
-    <div className="grid">
-      <div style={{ gridColumn: '1 / -1' }}>
-        <UploadPanel onVision={onVision} onEbay={onEbay} />
-      </div>
-      <Overview vision={vision} ebay={ebay} />
-      <TopThree vision={vision} ebay={ebay} />
-      <div style={{ gridColumn: '1 / -1' }}>
-        <ItemTable vision={vision} ebay={ebay} />
-      </div>
-    </div>
+    <main>
+      <UploadPanel onVision={onVision} onEbay={onEbay} onFetchStart={onFetchStart}/>
+      <Overview items={items} ebay={ebay} status={status}/>
+      <TopThree items={items} ebay={ebay} status={status}/>
+      <ItemTable items={items} ebay={ebay} status={status}/>
+    </main>
   );
 }
