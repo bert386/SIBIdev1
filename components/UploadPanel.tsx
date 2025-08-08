@@ -11,6 +11,8 @@ export default function UploadPanel({ onVision, onEbay }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [images, setImages] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  const [identified, setIdentified] = useState<any[]>([]);
+  const [note, setNote] = useState('');
   const [progress, setProgress] = useState(0);
 
   const handleFiles = (files: FileList | null) => {
@@ -28,6 +30,8 @@ export default function UploadPanel({ onVision, onEbay }: Props) {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || 'Analyse failed');
       onVision(json as VisionResult);
+      setIdentified((json as VisionResult).items || []);
+      setNote(`Identified ${(json as VisionResult).items?.length || 0} items`);
     } catch (e:any) {
       alert(e.message);
     } finally {
@@ -49,6 +53,7 @@ export default function UploadPanel({ onVision, onEbay }: Props) {
       clearInterval(id);
       if (!res.ok) throw new Error(json?.error || 'Fetch eBay failed');
       onEbay(json as EbayResult[]);
+      setNote(`Fetched eBay data for ${(json as EbayResult[]).length} items`);
       setProgress(100);
     } catch (e:any) {
       alert(e.message);
@@ -63,9 +68,11 @@ export default function UploadPanel({ onVision, onEbay }: Props) {
         <input ref={inputRef} type="file" multiple accept="image/*" onChange={(e)=>handleFiles(e.target.files)} />
         <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
           <button className="btn" onClick={analyse} disabled={busy || images.length===0}>Analyse Image</button>
-          <button className="btn secondary" onClick={()=>getEbay((window as any).__sibi_items || [])} disabled={busy}>Get eBay Data</button>
+          <button className="btn secondary" onClick={()=>getEbay((window as any).__sibi_items || [])} disabled={busy || identified.length===0}>Get eBay Data</button>
         </div>
         <div className="progress"><div style={{ width: `${progress}%` }} /></div>
+      
+        {note && <div style={{color:'var(--muted)'}}>{note}</div>}
       </div>
     </div>
   );

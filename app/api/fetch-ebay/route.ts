@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { buildEbayActiveUrl, buildEbaySoldUrl, buildScraperUrl, parseSoldHtml, average } from '@/lib/scraper';
 import type { VisionItem, EbayResult } from '@/lib/types';
+import { fetchWithTimeout, sleep } from '@/lib/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 type Body = { items: VisionItem[] };
 
@@ -63,13 +65,13 @@ export async function POST(req: Request) {
     // Small-batch concurrency (2 at a time) without external deps
     const items = body.items;
     const results: EbayResult[] = [];
-    const batchSize = 2;
+    const batchSize = Number(process.env.SCRAPE_CONCURRENCY || 1);
+    const delayMs = Number(process.env.SCRAPE_DELAY_MS || 1200);
     for (let i = 0; i < items.length; i += batchSize) {
       const slice = items.slice(i, i + batchSize);
       const batch = await Promise.all(slice.map((it, j) => processItem(it, i + j, items.length)));
       results.push(...batch);
-      // gentle spacing to be nice to the scraper target
-      await new Promise(r => setTimeout(r, 300));
+      await sleep(delayMs);
     }
 
     return NextResponse.json(results);
