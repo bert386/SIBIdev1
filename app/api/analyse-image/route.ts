@@ -1,212 +1,139 @@
-// app/api/fetch-ebay/route.ts
+// app/api/analyse-image/route.ts
 import { NextResponse } from 'next/server';
-
-// Keep imports loose to avoid type mismatches in your repo.
-// If your project exposes these helpers, they will be used; otherwise this file
-// has local fallbacks for median and fetch-with-timeout.
-let _hasHelpers = true;
-let parseSoldHtml: any, parseActiveCountHtml: any, buildEbaySoldUrl: any, buildEbayActiveUrl: any, buildScraperUrl: any;
-try {
-  // Your project utilities (preferred)
-  ({ parseSoldHtml, parseActiveCountHtml, buildEbaySoldUrl, buildEbayActiveUrl, buildScraperUrl } = require('@/lib/scraper'));
-} catch {
-  _hasHelpers = false;
-}
-
-// ---- Local helpers (used if project helpers are missing) ----
-function medianLocal(nums: number[]): number | null {
-  if (!nums || nums.length === 0) return null;
-  const a = nums.slice().sort((x, y) => x - y);
-  const mid = Math.floor(a.length / 2);
-  return a.length % 2 ? a[mid] : Math.round(((a[mid - 1] + a[mid]) / 2) * 100) / 100;
-}
-
-async function fetchWithTimeoutLocal(url: string, opts: any = {}, timeoutMs = 30000): Promise<Response> {
-  const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...opts, signal: ctrl.signal });
-    return res;
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-const SCRAPE_MAX_ITEMS_PER_CALL = Number(process.env.SCRAPE_MAX_ITEMS_PER_CALL ?? '1');
-const SOLD_TIMEOUT_MS = Number(process.env.SIBI_SOLD_TIMEOUT_MS ?? '40000');
-const ACTIVE_TIMEOUT_MS = Number(process.env.SIBI_ACTIVE_TIMEOUT_MS ?? '25000');
-const ACTIVE_MODE = (process.env.SIBI_ACTIVE_MODE ?? 'all').toLowerCase(); // 'all' | 'none'
-const OUTLIER_LOW = Number(process.env.SIBI_OUTLIER_LOW ?? '0.3');
-const OUTLIER_HIGH = Number(process.env.SIBI_OUTLIER_HIGH ?? '2.0');
-
-type VisionItem = any;
-type EbayResult = any;
-
-// Prefer LEGO set-number queries when present
-function buildQuery(item: VisionItem): string {
-  if (item?.brand?.toLowerCase?.() === 'lego' && item?.set_number) {
-    const name = item?.official_name ? ` ${item.official_name}` : '';
-    return `LEGO ${item.set_number}${name}`.trim();
-  }
-  const parts: string[] = [];
-  if (item?.title) parts.push(item.title);
-  if (item?.year) parts.push(`(${item.year})`);
-  if (item?.platform) parts.push(String(item.platform));
-  return (item?.search || parts.join(' ')).trim();
-}
-
-// Apply business rules to sold prices
-function filterSoldPrices(raw: number[], gptValue?: number | null) {
-  // Drop exact $20.00 adverts
-  const noAds = raw.filter(v => Math.round(v * 100) / 100 !== 20);
-  if (!gptValue || gptValue <= 0) {
-    return { filtered: noAds, mode: 'no-gpt' as const };
-  }
-  const lo = OUTLIER_LOW * gptValue;
-  const hi = OUTLIER_HIGH * gptValue;
-  const bounded = noAds.filter(v => v >= lo && v <= hi);
-
-  // If strict leaves <3 but we had some data, fallback to trimmed
-  if (bounded.length < 3 && noAds.length > 0) {
-    const a = noAds.slice().sort((x, y) => x - y);
-    if (a.length >= 5) a.splice(0, 1), a.splice(a.length - 1, 1);
-    return { filtered: a, mode: 'fallback-trimmed' as const };
-  }
-  return { filtered: bounded, mode: 'gpt-bounds' as const };
-}
-
-// Robust active count parsing fallback if project helper is missing
-function parseActiveCountHtmlLocal(html: string): { count: number | null, method: string } {
-  try {
-    // try "of N results"
-    const ofMatch = html.match(/of\s+([\d,]+)\s+results/i);
-    if (ofMatch) return { count: Number(ofMatch[1].replace(/,/g, '')), method: 'text-of' };
-    // try simple "N results"
-    const nMatch = html.match(/([\d,]+)\s+results/i);
-    if (nMatch) return { count: Number(nMatch[1].replace(/,/g, '')), method: 'text-simple' };
-    // fallback: count list items (very rough)
-    const liCount = (html.match(/<li\b[^>]*class=\"[^"]*s-item[^"]*\"/g) || []).length;
-    if (liCount) return { count: liCount, method: 'li-count' };
-  } catch {}
-  return { count: null, method: 'none' };
-}
-
-function toMedian(nums: number[]): number | null {
-  if (_hasHelpers && typeof require('@/lib/scraper').median === 'function') {
-    try {
-      const m = require('@/lib/scraper').median(nums);
-      if (m !== undefined) return m;
-    } catch {}
-  }
-  return medianLocal(nums);
-}
-
-async function getHtml(url: string, timeoutMs: number): Promise<string> {
-  try {
-    const res = await fetchWithTimeoutLocal(url, { headers: { 'Accept-Language': 'en-AU,en;q=0.8' } }, timeoutMs);
-    return await res.text();
-  } catch (e) {
-    // retry once
-    const res2 = await fetchWithTimeoutLocal(url, { headers: { 'Accept-Language': 'en-AU,en;q=0.8' } }, timeoutMs);
-    return await res2.text();
-  }
-}
+import { getOpenAI } from '@/lib/openai';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+type ImgUrlPart = { type: 'image_url'; image_url: { url: string } };
+type TextPart = { type: 'text'; text: string };
+type AnyPart = any;
+
+function toDataUrl(file: File): Promise<string> {
+  return file.arrayBuffer().then(buf => {
+    const b64 = Buffer.from(buf).toString('base64');
+    const mime = (file as File).type || 'image/png';
+    return `data:${mime};base64,${b64}`;
+  });
+}
+
+// Normalize any weird parts into Chat Completions-compatible ones
+function normalizeParts(parts: AnyPart[]): (TextPart | ImgUrlPart)[] {
+  const out: (TextPart | ImgUrlPart)[] = [];
+  for (const p of parts) {
+    if (!p) continue;
+    if (p.type === 'text' && typeof p.text === 'string') {
+      out.push({ type: 'text', text: p.text });
+      continue;
+    }
+    // Accept a few variants and coerce to image_url
+    if (p.type === 'image_url' && p.image_url?.url) {
+      out.push({ type: 'image_url', image_url: { url: String(p.image_url.url) } });
+      continue;
+    }
+    if (p.type === 'input_image' && (p.image_url?.url || p.url || p.data_url)) {
+      const url = p.image_url?.url || p.url || p.data_url;
+      out.push({ type: 'image_url', image_url: { url: String(url) } });
+      continue;
+    }
+    if (p.type === 'image' && p.url) {
+      out.push({ type: 'image_url', image_url: { url: String(p.url) } });
+      continue;
+    }
+  }
+  return out;
+}
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const items: VisionItem[] = Array.isArray(body?.items) ? body.items : [];
-    const total = items.length;
-    const work = items.slice(0, Math.min(total, SCRAPE_MAX_ITEMS_PER_CALL));
+    const ct = req.headers.get('content-type') || '';
+    let parts: (TextPart | ImgUrlPart)[] = [];
 
-    const results: EbayResult[] = [];
-    for (let idx = 0; idx < work.length; idx++) {
-      const item = work[idx];
-      const query = buildQuery(item);
-      console.log(`🕷️ [${idx + 1}/${work.length}] SOLD+ACTIVE start: "${query}"`);
+    const basePrompt = [
+      'You are an expert item evaluator for people buying and selling on eBay.',
+      'Identify each distinct item and return structured JSON.',
+      '',
+      'For EVERY item return:',
+      '- title (include release year in parentheses if obvious)',
+      '- platform (Wii, PS3, DVD, VHS, etc.) or null',
+      "- category in {'game','dvd','vhs','book','comic','toy','diecast','other'}",
+      '- year (number|null)',
+      '- gpt_value_aud (integer AUD; realistic and NOT identical across items)',
+      '- search (concise query)',
+      '',
+      'Brand-specific rules:',
+      '- LEGO: brand="LEGO", theme, set_number (3–6 digits), official_name, pieces, condition, quantity.',
+      '  * If set_number is visible, search MUST be "LEGO {set_number} {official_name}".',
+      '- Video games: include platform + region (PAL/NTSC) + edition (CIB/loose) + year.',
+      '- Consoles/handhelds: include model code (e.g., HAC-001(-01)), storage, revision.',
+      '- Funko: include Pop # and any sticker/exclusive.',
+      '',
+      'Return ONLY valid JSON with keys: lot_summary (string), items (array).',
+      'Use integer dollars for gpt_value_aud (no cents).'
+    ].join('\n');
 
-      // Build URLs (use project helpers if present; else construct basic eBay URLs)
-      const soldUrl = _hasHelpers && buildEbaySoldUrl ? buildEbaySoldUrl(query) :
-        `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(query)}&_sop=13&LH_Sold=1&LH_Complete=1`;
-      const activeUrl = _hasHelpers && buildEbayActiveUrl ? buildEbayActiveUrl(query) :
-        `https://www.ebay.com.au/sch/i.html?_nkw=${encodeURIComponent(query)}&_sop=13`;
+    // Accept multipart/form-data OR JSON with a "messages" or "parts" array
+    if (ct.includes('multipart/form-data')) {
+      const form = await req.formData();
+      const files = [
+        ...form.getAll('images'),
+        ...form.getAll('image'),
+        ...form.getAll('files'),
+        ...form.getAll('file')
+      ].filter(Boolean) as File[];
 
-      // Fetch SOLD and ACTIVE in parallel (ACTIVE optional)
-      const soldP = getHtml(soldUrl, SOLD_TIMEOUT_MS);
-      const activeP = (ACTIVE_MODE === 'all') ? getHtml(activeUrl, ACTIVE_TIMEOUT_MS) : Promise.resolve('');
-
-      const [soldHtml, activeHtml] = await Promise.all([soldP, activeP]);
-
-      // Parse SOLD
-      let soldPrices: number[] = [];
-      try {
-        if (_hasHelpers && parseSoldHtml) {
-          const parsed = await parseSoldHtml(soldHtml);
-          // Prefer parsed.prices if available
-          const p = Array.isArray(parsed?.prices) ? parsed.prices : [];
-          soldPrices = p.map((v: any) => Number(v)).filter((n: number) => Number.isFinite(n) && n > 0);
-        } else {
-          // crude fallback: grab currency numbers like $12.34
-          const matches = soldHtml.match(/\$\s*([\d,]+(?:\.\d{1,2})?)/g) || [];
-          soldPrices = matches.map(m => Number(m.replace(/[^\d.]/g, ''))).filter(n => n > 0);
-        }
-      } catch {
-        soldPrices = [];
+      if (!files.length) {
+        return NextResponse.json({ error: 'No images uploaded' }, { status: 400 });
       }
 
-      // Apply filters & median
-      const gpt = Number(item?.gpt_value_aud) || null;
-      const { filtered, mode } = filterSoldPrices(soldPrices, gpt);
-      const last10 = filtered.slice(0, 10);
-      const ebayMedian = toMedian(last10);
-
-      // Parse ACTIVE count
-      let available_now: number | null = null;
-      let activeMethod = 'skip';
-      if (ACTIVE_MODE === 'all') {
-        try {
-          if (_hasHelpers && parseActiveCountHtml) {
-            const ac = parseActiveCountHtml(activeHtml);
-            available_now = ac?.count ?? null;
-            activeMethod = ac?.method ?? 'helper';
-          } else {
-            const ac = parseActiveCountHtmlLocal(activeHtml);
-            available_now = ac.count;
-            activeMethod = ac.method;
-          }
-        } catch {
-          available_now = null;
-          activeMethod = 'error';
-        }
+      parts.push({ type: 'text', text: basePrompt });
+      for (const f of files) {
+        const url = await toDataUrl(f);
+        parts.push({ type: 'image_url', image_url: { url } });
       }
+    } else {
+      const body = await req.json().catch(() => ({} as any));
+      const candidate: any[] =
+        (Array.isArray(body?.messages?.[1]?.content) ? body.messages[1].content :
+         Array.isArray(body?.parts) ? body.parts :
+         Array.isArray(body?.content) ? body.content : []);
 
-      console.log(`🔢 PricesFiltered(m<=10): ${last10.join(', ')} | median=${ebayMedian ?? 'null'} | mode=${mode}`);
-      if (ACTIVE_MODE === 'all') console.log(`🔎 Active count method=${activeMethod} value=${available_now ?? 'null'}`);
-
-      const res: any = {
-        title: item?.title ?? query,
-        search_term: query,
-        avg_sold_aud: ebayMedian, // UI expects this key
-        sold_90d: last10.length || null,
-        available_now,
-        prices: last10,
-        mode,
-        status: (ebayMedian == null ? 'NRS' : 'OK'),
-      };
-      results.push(res);
-      console.log(`✅ [${idx + 1}/${work.length}] Done "${query}"`);
+      // Always prepend our text prompt
+      const normalized = normalizeParts(candidate);
+      parts = [{ type: 'text', text: basePrompt }, ...normalized];
     }
 
-    // Signal partial processing if capped
-    const partial = total > work.length;
-    const resp = NextResponse.json(results);
-    if (partial) resp.headers.set('x-sibi-next', String(work.length));
-    return resp;
+    // Debug what we're sending
+    try {
+      console.log('🧠 parts.types =', parts.map(p => (p as any).type));
+    } catch {}
+
+    const system = 'Be precise and consistent. Prefer exact identifiers (LEGO set number, console model code). Provide varied but realistic gpt_value_aud.';
+
+    const openai = getOpenAI();
+    const completion = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: parts as any }
+      ]
+    });
+
+    const raw = completion.choices?.[0]?.message?.content || '{}';
+    let json: any;
+    try { json = JSON.parse(raw); } catch { json = { lot_summary: '', items: [] }; }
+    if (!json || !Array.isArray(json.items)) json = { lot_summary: json?.lot_summary || '', items: [] };
+
+    (json.items || []).forEach((it: any, i: number) => {
+      const sterm = it.search || it.title;
+      console.log(`🧠 item#${i+1}: ${sterm} | gpt=${it.gpt_value_aud ?? '—'}`);
+    });
+
+    return NextResponse.json(json);
   } catch (err: any) {
-    console.error('⚠️ fetch-ebay error:', err?.message || err);
+    console.error('⚠️ analyse-image error:', err?.message || err);
     return NextResponse.json({ error: err?.message || 'Internal error' }, { status: 500 });
   }
 }
