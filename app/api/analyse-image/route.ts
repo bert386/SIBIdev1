@@ -39,7 +39,7 @@ Identify each distinct item with keys:
 - gpt_value_aud (number|null) — your estimated value in AUD
 - search (string) — a concise query INCLUDING title, year, and platform when available, e.g. "Rayman Raving Rabbids (2006) Wii game".
 Also return lot_summary (1-2 sentences).
-Provide realistic, non-identical `gpt_value_aud` per item (do not reuse the same value).
+Provide realistic, non-identical 'gpt_value_aud' per item (do not reuse the same value).
 Return ONLY valid JSON with keys: lot_summary, items (array of the above). Use integer dollars for gpt_value_aud (no cents).`;
 
     console.log('🧠 Calling OpenAI for vision...');
