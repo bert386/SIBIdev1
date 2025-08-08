@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { buildEbayActiveUrl, buildEbaySoldUrl, buildScraperUrl, parseSoldHtml, average } from '@/lib/scraper';
+import { buildEbayActiveUrl, buildEbaySoldUrl, buildScraperUrl, parseSoldHtml, average, median, parseActiveCountHtml } from '@/lib/scraper';
 import type { VisionItem, EbayResult } from '@/lib/types';
 import { fetchWithTimeout, sleep } from '@/lib/http';
 
@@ -23,11 +23,21 @@ async function processItem(item: VisionItem, idx: number, total: number): Promis
   let status: 'OK'|'NRS' = 'OK';
   if (parsed.noExactMatches || parsed.prices.length === 0) status = 'NRS';
 
-  const prices = parsed.prices.slice(0, 10);
-  const links = parsed.links.slice(0, 10);
-  const avg = average(prices);
-
-  console.log(`🔢 Prices: ${prices.join(', ')} | avg=${avg ?? 'null'}`);
+  const zipped = parsed.prices.map((p, idx) => ({ p, link: parsed.links[idx] })).filter(z => typeof z.p === 'number');
+    // Filter out ad price 20 exactly
+    let filtered = zipped.filter(z => z.p !== 20);
+    // Range filter based on GPT estimate if present
+    const gpt = (item as any).gpt_value_aud as number | undefined;
+    if (typeof gpt === 'number' && gpt > 0) {
+      const lo = 0.3 * gpt;
+      const hi = 2.0 * gpt;
+      filtered = filtered.filter(z => z.p >= lo && z.p <= hi);
+    }
+    // Take last 10 after filtering
+    const pricesArr = filtered.slice(0, 10).map(z => z.p);
+    const linksArr = filtered.slice(0, 10).map(z => z.link);
+    const stat = median(pricesArr);
+    console.log(`🔢 [${idx+1}/${total}] PricesFiltered(${pricesArr.length}): ${pricesArr.join(', ')} | median=${stat ?? 'null'}`);
 
   console.log(`🕷️ Fetching ACTIVE for "${query}"`);
   const actRes = await fetch(activeScrape, { cache: 'no-store', headers: { 'Accept-Language': 'en-AU,en;q=0.8' } });
@@ -36,13 +46,13 @@ async function processItem(item: VisionItem, idx: number, total: number): Promis
     const activeCount = ac.count;
     console.log(`🔎 Active count method=${ac.method} value=${activeCount ?? 'null'}`);
 
-  const soldCount = parsed.totalCount ?? prices.length;
+  const soldCount = parsed.totalCount ?? pricesArr.length;
 
   return {
     title: query,
-    sold_prices_aud: prices,
-    sold_links: links,
-    avg_sold_aud: status === 'OK' ? avg : null,
+    sold_prices_aud: pricesArr,
+    sold_links: linksArr,
+    avg_sold_aud: status === 'OK' ? stat : null,
     sold_90d: soldCount,
     available_now: activeCount,
     sold_search_link: soldUrl,
