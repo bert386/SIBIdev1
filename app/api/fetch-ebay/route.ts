@@ -11,127 +11,100 @@ type Body = { items: VisionItem[] };
 
 const SOLD_TIMEOUT = 40000;
 const ACTIVE_TIMEOUT = 25000;
-
 const OUTLIER_LOW = Number(process.env.SIBI_OUTLIER_LOW || 0.3);
 const OUTLIER_HIGH = Number(process.env.SIBI_OUTLIER_HIGH || 2.0);
 const ACTIVE_MODE = (process.env.SIBI_ACTIVE_MODE || 'all').toLowerCase(); // 'all' | 'none'
 
-
-function buildQuery(item: VisionItem) {
-  // Prefer LEGO set number when available for precise comps
-  const isLego = (item as any).brand?.toLowerCase?.() === 'lego' || /lego/i.test(item.title || '') || !!(item as any).set_number;
-  const setNum = (item as any).set_number as string | undefined;
-  const official = (item as any).official_name as string | undefined;
-  if (isLego && setNum) {
-    return `LEGO ${setNum} ${official ? official : ''}`.trim();
+function buildQuery(item: VisionItem): string {
+  // LEGO preference
+  if (item.brand?.toLowerCase() === 'lego' && item.set_number) {
+    const name = item.official_name ? ` ${item.official_name}` : '';
+    return `LEGO ${item.set_number}${name}`.trim();
   }
-  // fallback to provided search or constructed parts
-  const parts = [item.title];
+  const parts: string[] = [];
+  if (item.title) parts.push(item.title);
   if (item.year) parts.push(`(${item.year})`);
-  if (item.platform) parts.push(item.platform as string);
-  return (item.search || parts.join(' ')).trim();
-}
-)`);
-  if (item.platform) parts.push(item.platform);
+  if (item.platform) parts.push(String(item.platform));
   return (item.search || parts.join(' ')).trim();
 }
 
-function applyFiltersAndMedian(rawPrices: number[], gpt?: number | null): { filtered: number[]; med: number | null; mode: string } {
-  // drop exact 20
-  let p = rawPrices.filter(v => Math.round(v * 100) / 100 !== 20);
-  const original = p.length;
+async function fetchWithRetry(url: string, timeout: number, label: string): Promise<string> {
+  for (let attempt=1; attempt<=2; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, { cache:'no-store', headers: { 'Accept-Language': 'en-AU,en;q=0.8' } }, timeout);
+      return await res.text();
+    } catch (e: any) {
+      if (attempt === 2) throw e;
+      console.log(`↻ retry ${label} after error:`, e?.message || e);
+      await sleep(600);
+    }
+  }
+  return '';
+}
+
+function applyFiltersAndMedian(raw: number[], gpt?: number | null): { filtered: number[]; med: number | null; mode: string } {
+  // remove exact 20.00 (ads)
+  let p = raw.filter(v => Math.round(v*100)/100 !== 20);
+  const origCount = p.length;
+
   let mode = 'gpt-bounds';
-  if (gpt && isFinite(gpt)) {
-    const lo = Math.floor(gpt * OUTLIER_LOW * 100) / 100;
-    const hi = Math.ceil(gpt * OUTLIER_HIGH * 100) / 100;
+  if (typeof gpt === 'number' && gpt > 0) {
+    const lo = OUTLIER_LOW * gpt;
+    const hi = OUTLIER_HIGH * gpt;
     p = p.filter(v => v >= lo && v <= hi);
   }
-  // take up to the first 10 valid solds
-  let slice = p.slice(0, 10);
-  let med = median(slice);
-  if ((slice.length < 3 || med == null) && original > 0) {
-    // fallback: trimmed non-GPT median (still drop $20)
-    mode = 'fallback-trimmed';
-    p = rawPrices.filter(v => Math.round(v * 100) / 100 !== 20).slice(0, 15);
-    p.sort((a, b) => a - b);
-    if (p.length >= 5) {
-      p = p.slice(1, -1); // trim extremes
-    }
-    slice = p.slice(0, 10);
-    med = median(slice);
-  }
-  return { filtered: slice, med, mode };
-}
 
-async function fetchSold(url: string): Promise<ReturnType<typeof parseSoldHtml>> {
-  const scraper = buildScraperUrl(url);
-  const attempt = async () => {
-    const r = await fetchWithTimeout(scraper, { cache: 'no-store', headers: { 'Accept-Language': 'en-AU,en;q=0.8' } }, SOLD_TIMEOUT);
-    const html = await r.text();
-    return parseSoldHtml(html);
-  };
-  try {
-    return await attempt();
-  } catch (e) {
-    console.warn('⚠️ SOLD fetch error, retrying once:', (e as any)?.message || e);
-    await sleep(1200);
-    return await attempt();
+  if (p.length >= 3) {
+    const used = p.slice(0, 10);
+    return { filtered: used, med: median(used), mode };
   }
-}
 
-async function fetchActive(url: string): Promise<{ count: number | null; method: string }> {
-  if (ACTIVE_MODE === 'none') return { count: null, method: 'skipped' };
-  const scraper = buildScraperUrl(url);
-  const attempt = async () => {
-    const r = await fetchWithTimeout(scraper, { cache: 'no-store', headers: { 'Accept-Language': 'en-AU,en;q=0.8' } }, ACTIVE_TIMEOUT);
-    const html = await r.text();
-    return parseActiveCountHtml(html);
-  };
-  try {
-    return await attempt();
-  } catch (e) {
-    console.warn('⚠️ ACTIVE fetch error, retrying once:', (e as any)?.message || e);
-    await sleep(800);
-    return await attempt();
-  }
+  // fallback trimmed median
+  mode = 'fallback-trimmed';
+  p = raw.filter(v => Math.round(v*100)/100 !== 20).slice(0, 15).sort((a,b)=>a-b);
+  if (p.length >= 5) p = p.slice(1, -1);
+  const used = p.slice(0, 10);
+  return { filtered: used, med: median(used), mode };
 }
 
 async function processItem(item: VisionItem, idx: number, total: number): Promise<EbayResult> {
-  const started = Date.now();
   const query = buildQuery(item);
   const soldUrl = buildEbaySoldUrl(query);
   const activeUrl = buildEbayActiveUrl(query);
+  const soldScrape = buildScraperUrl(soldUrl);
+  const activeScrape = buildScraperUrl(activeUrl);
 
-  console.log(`🕷️ [${idx+1}/${total}] SOLD start "${query}"`);
-  const [soldRes, activeRes] = await Promise.all([
-    fetchSold(soldUrl),
-    fetchActive(activeUrl),
+  console.log(`🕷️ [${idx+1}/${total}] SOLD+ACTIVE start "${query}"`);
+
+  const [soldHtml, activeHtml] = await Promise.all([
+    fetchWithRetry(soldScrape, SOLD_TIMEOUT, 'sold'),
+    (ACTIVE_MODE === 'none' ? Promise.resolve('') : fetchWithRetry(activeScrape, ACTIVE_TIMEOUT, 'active')),
   ]);
 
-  let status: 'OK' | 'NRS' = 'OK';
-  const raw = soldRes.prices;
-  const filter = applyFiltersAndMedian(raw, item.gpt_value_aud ?? null);
-  const prices = filter.filtered;
-  const med = filter.med;
+  const sold = parseSoldHtml(soldHtml);
+  let activeCount: number | null = 0;
+  if (ACTIVE_MODE !== 'none') {
+    const ac = parseActiveCountHtml(activeHtml);
+    activeCount = ac.count;
+    console.log(`🔎 Active count method=${ac.method} value=${activeCount ?? 'null'}`);
+  }
 
-  console.log(`🔢 [${idx+1}/${total}] PricesFiltered(m<=10): ${prices.join(', ')} | median=${med ?? 'null'} | mode=${filter.mode}${soldRes.fallbackUsed ? ' | price-fallback' : ''}`);
+  const { filtered, med, mode } = applyFiltersAndMedian(sold.prices, item.gpt_value_aud ?? null);
+  console.log(`🔢 [${idx+1}/${total}] PricesFiltered(m<=10): ${filtered.join(', ')} | median=${med ?? 'null'} | mode=${mode}${sold.fallbackUsed ? ' | price-fallback' : ''}`);
 
-  if (!prices.length || med == null) status = 'NRS';
+  const status: 'OK'|'NRS' = (filtered.length > 0 && med != null) ? 'OK' : 'NRS';
+  const soldCount = sold.totalCount ?? filtered.length;
 
-  const took = Date.now() - started;
-  const result: EbayResult = {
+  return {
     title: query,
-    sold_prices_aud: prices,
-    sold_links: [], // optional: could return soldRes.links.slice(0, prices.length)
-    avg_sold_aud: status === 'OK' ? med : null,
-    sold_90d: soldRes.totalCount ?? prices.length,
-    available_now: activeRes.count,
+    sold_prices_aud: filtered,
+    sold_links: sold.links.slice(0, filtered.length),
+    avg_sold_aud: status==='OK' ? med : null,
+    sold_90d: soldCount,
+    available_now: activeCount,
     sold_search_link: soldUrl,
     status,
   };
-  console.log(`🔎 Active count method=${activeRes.method} value=${activeRes.count ?? 'null'}`);
-  console.log(`✅ [${idx+1}/${total}] Done "${query}" in ${took}ms`);
-  return result;
 }
 
 export async function POST(req: Request) {
@@ -140,19 +113,25 @@ export async function POST(req: Request) {
     const total = body?.items?.length || 0;
     if (!total) return NextResponse.json({ error: 'No items provided' }, { status: 400 });
 
+    // server-side cap to stay under 60s
     const MAX_ITEMS_PER_CALL = Number(process.env.SCRAPE_MAX_ITEMS_PER_CALL || 1);
-    const items = (body.items || []).slice(0, Math.min(total, MAX_ITEMS_PER_CALL));
+    const work = body.items.slice(0, Math.min(total, MAX_ITEMS_PER_CALL));
+    const batchSize = Number(process.env.SCRAPE_CONCURRENCY || 2);
+    const delayMs = Number(process.env.SCRAPE_DELAY_MS || 300);
+
     const results: EbayResult[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const r = await processItem(items[i], i, items.length);
-      results.push(r);
-      await sleep(Number(process.env.SCRAPE_DELAY_MS || 200));
+    for (let i = 0; i < work.length; i += batchSize) {
+      const slice = work.slice(i, i + batchSize);
+      const batch = await Promise.all(slice.map((it, j) => processItem(it, i + j, work.length)));
+      results.push(...batch);
+      await sleep(delayMs);
     }
+
     const res = NextResponse.json(results);
-    if (total > items.length) res.headers.set('x-sibi-next', String(items.length));
+    if (total > work.length) res.headers.set('x-sibi-next', String(work.length));
     return res;
-  } catch (err: any) {
-    console.error('⚠️ fetch-ebay error:', err?.message || err);
-    return NextResponse.json({ error: err?.message || 'Internal error' }, { status: 500 });
+  } catch (e: any) {
+    console.error('⚠️ fetch-ebay error:', e?.message || e);
+    return NextResponse.json({ error: e?.message || 'Internal error' }, { status: 500 });
   }
 }

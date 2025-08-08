@@ -1,23 +1,22 @@
-import type { VisionResult, EbayResult } from '@/lib/types';
+import type { VisionItem, EbayResult } from '@/lib/types';
 
-export default function Overview({ vision, ebay }: { vision?: VisionResult, ebay?: EbayResult[] }) {
-  const totalItems = vision?.items?.length || 0;
-  const totalGpt = vision?.items?.reduce((s,i)=> s + (i.gpt_value_aud || 0), 0) || 0;
-  const totalEbay = (ebay||[]).reduce((s,i)=> s + (i.avg_sold_aud || 0), 0);
-  const avgItem = totalItems ? (totalEbay/totalItems) : 0;
+export default function Overview({ items, ebay, status }: { items: VisionItem[]; ebay: EbayResult[]; status: 'idle'|'analysing'|'fetching'|'done'; }) {
+  const allDone = status==='done' && ebay.length===items.length && items.length>0;
+  const totalGpt = items.reduce((s, it)=> s + (Number(it.gpt_value_aud)||0), 0);
+  const totalEbay = allDone ? ebay.reduce((s, r)=> s + (Number(r.avg_sold_aud)||0), 0) : null;
+  const avgItem = (allDone && items.length) ? (totalEbay! / items.length) : null;
 
   return (
-    <div className="card">
-      <div className="section-title">Lot Overview</div>
-      {totalItems === 0 ? <div>No data yet.</div> : (
-        <div className="kv">
-          <div>Total Items:</div><div>{totalItems}</div>
-          <div>Total GPT Value:</div><div>${totalGpt.toFixed(2)} AUD</div>
-          <div>Total eBay Value:</div><div>${totalEbay.toFixed(2)} AUD</div>
-          <div>Avg Item Value:</div><div>${avgItem.toFixed(2)} AUD</div>
-          <div>Lot Description:</div><div>{vision?.lot_summary || '—'}</div>
-        </div>
-      )}
+    <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:8, marginBottom:12}}>
+      <Stat label="Total Items" value={String(items.length||'—')} />
+      <Stat label="Total GPT Value" value={aud(totalGpt)} />
+      <Stat label="Total eBay Value" value={totalEbay==null ? '—' : aud(totalEbay)} />
+      <Stat label="Avg Item Value" value={avgItem==null ? '—' : aud(avgItem)} />
+      {status==='fetching' && <div style={{gridColumn:'1 / -1',opacity:.7}}>Fetching eBay ({Math.min(ebay.length, items.length)}/{items.length})</div>}
     </div>
   );
 }
+function Stat({label, value}:{label:string; value:string}){
+  return <div style={{border:'1px solid #eee',borderRadius:8,padding:10}}><div style={{opacity:.7,fontSize:12}}>{label}</div><div style={{fontWeight:700, fontSize:18}}>{value}</div></div>;
+}
+function aud(n:number){ return n.toLocaleString('en-AU',{ style:'currency', currency:'AUD', maximumFractionDigits:0}); }

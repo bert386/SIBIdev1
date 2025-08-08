@@ -1,25 +1,14 @@
 import './globals.css';
-import Image from 'next/image';
-import Link from 'next/link';
-
-export const metadata = {
-  title: 'SIBI — Should I Buy It',
-  description: 'Identify and value bulk lots using OpenAI + eBay last solds',
-};
-
+import React from 'react';
+export const metadata = { title: 'SIBI', description: 'Should I Buy It' };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <header className="header">
-          <div className="brand">
-            <Image src="/logo.png" alt="SIBI" width={36} height={36} />
-            <span className="title">SIBI</span>
-          </div>
-          <div className="slogan">Should I Buy It</div>
+        <header style={{padding:'12px 16px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
+          <b>SIBI</b><span>v0.3.5</span>
         </header>
-        <main className="container">{children}</main>
-        <footer className="footer">v0.2.9</footer>
+        <main style={{padding:16, maxWidth:1000, margin:'0 auto'}}>{children}</main>
       </body>
     </html>
   );

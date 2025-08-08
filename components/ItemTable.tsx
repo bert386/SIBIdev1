@@ -1,58 +1,32 @@
-'use client';
-import PricesModal from './PricesModal';
-import type { VisionResult, EbayResult } from '@/lib/types';
+import type { VisionItem, EbayResult } from '@/lib/types';
 
-export default function ItemTable({ vision, ebay }: { vision?: VisionResult, ebay?: EbayResult[] }) {
-  const vItems = vision?.items || [];
-  const map = new Map<string, EbayResult>();
-  (ebay||[]).forEach(e => map.set(e.title, e));
-
-  if (!vItems.length) return <div className="card"><div className="section-title">Item List</div><div>No data yet.</div></div>;
-
+export default function ItemTable({ items, ebay, status }: { items: VisionItem[]; ebay: EbayResult[]; status: 'idle'|'analysing'|'fetching'|'done'; }) {
   return (
-    <div className="card">
-      <div className="section-title">Item List</div>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Year</th>
-            <th>Platform</th>
-            <th>Cat</th>
-            <th>Avail</th>
-            <th>Sold</th>
-            <th>$GPT</th>
-            <th>$eBay</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {vItems.map((it, idx)=>{
-            const e = map.get(it.search || it.title);
-            const modalId = `m_${idx}`;
-            return (
-              <tr key={idx}>
-                <td>{it.title}</td>
-                <td>{it.year ?? '—'}</td>
-                <td>{it.platform ?? '—'}</td>
-                <td>{it.category}</td>
-                <td>{e?.available_now ?? '—'}</td>
-                <td>{e?.sold_90d ?? '—'}</td>
-                <td>{it.gpt_value_aud ?? '—'}</td>
-                <td>{e?.status === 'NRS' ? 'NRS' : (e?.avg_sold_aud ?? '—')}</td>
-                <td>
-                  {e?.sold_prices_aud?.length ? (
-                    <>
-                      <button className="btn secondary" onClick={()=> (window as any)[`open_${modalId}`]()}>eBay last solds</button>
-                      <PricesModal id={modalId} title={it.title} prices={e.sold_prices_aud} links={e.sold_links} note={(e.raw_sold_count!=null && e.filtered_count!=null)?`Filtered ${e.filtered_count} of ${e.raw_sold_count}`:undefined} />
-                    </>
-                  ) : (e?.sold_search_link ? <a className="btn secondary" href={e.sold_search_link} target="_blank">View</a> : null)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <table style={{width:'100%', borderCollapse:'collapse'}}>
+      <thead><tr>
+        <th style={th}>Item</th><th style={th}>Year</th><th style={th}>Platform</th><th style={th}>Category</th>
+        <th style={th}>Avail</th><th style={th}>Sold</th><th style={th}>$GPT</th><th style={th}>$eBay</th>
+      </tr></thead>
+      <tbody>
+        {items.map((it,i)=>{
+          const e = ebay[i];
+          return (
+            <tr key={i}>
+              <td style={td}>{it.title}</td>
+              <td style={td}>{it.year ?? '—'}</td>
+              <td style={td}>{it.platform ?? '—'}</td>
+              <td style={td}>{it.category ?? '—'}</td>
+              <td style={td}>{e?.available_now ?? (status==='fetching' ? '—' : '—')}</td>
+              <td style={td}>{e?.sold_90d ?? (status==='fetching' ? '—' : '—')}</td>
+              <td style={td}>{it.gpt_value_aud ?? '—'}</td>
+              <td style={td}>{e ? (e.status==='NRS' ? 'NRS' : aud(e.avg_sold_aud||0)) : (status==='fetching' ? '—' : '—')}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
+const th: React.CSSProperties = { textAlign:'left', padding:'6px 8px', borderBottom:'1px solid #eee' };
+const td: React.CSSProperties = { padding:'6px 8px', borderBottom:'1px solid #f2f2f2' };
+function aud(n:number){ return n.toLocaleString('en-AU',{ style:'currency', currency:'AUD', maximumFractionDigits:0}); }
