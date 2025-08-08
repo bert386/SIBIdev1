@@ -5,3 +5,30 @@
 body {
   @apply bg-gray-900 text-white;
 }
+
+
+body {
+    background-color: #000000;
+    color: #FFD700;
+    font-family: Arial, sans-serif;
+}
+header {
+    background-color: #111111;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+}
+header img {
+    height: 50px;
+    margin-right: 15px;
+}
+button, input[type="submit"] {
+    background-color: #FFD700;
+    color: #000000;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+}
+button:hover, input[type="submit"]:hover {
+    background-color: #e6c200;
+}
