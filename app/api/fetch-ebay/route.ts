@@ -9,45 +9,54 @@ export const maxDuration = 60;
 
 type Body = { items: VisionItem[] };
 
+function withinGptBounds(price: number, gpt?: number | null): boolean {
+  if (typeof gpt !== 'number' || Number.isNaN(gpt)) return true;
+  const lo = 0.3 * gpt;
+  const hi = 2.0 * gpt;
+  return price >= lo && price <= hi;
+}
+
 async function processItem(item: VisionItem, idx: number, total: number): Promise<EbayResult> {
   const started = Date.now();
-  const query = (item.search || `${item.title}${item.year ? ' ('+item.year+')' : ''}${item.platform ? ' ' + item.platform : ''}`).trim();
+  const query = (item.search || `${item.title}${item.year ? ' (' + item.year + ')' : ''}${item.platform ? ' ' + item.platform : ''}`).trim();
   const soldUrl = buildEbaySoldUrl(query);
   const activeUrl = buildEbayActiveUrl(query);
   const soldScrape = buildScraperUrl(soldUrl);
   const activeScrape = buildScraperUrl(activeUrl);
 
   try {
-    console.log(`🕷️ [${idx+1}/${total}] SOLD start "${query}"`);
+    console.log(`🕷️ [${idx + 1}/${total}] SOLD start "${query}"`);
     const soldRes = await fetchWithTimeout(soldScrape, { cache: 'no-store', headers: { 'Accept-Language': 'en-AU,en;q=0.8' } }, 25000);
     const soldHtml = await soldRes.text();
     const parsed = parseSoldHtml(soldHtml);
 
-    // Build (price,link) pairs
-    const zipped = parsed.prices.map((p, i) => ({ p, link: parsed.links[i] || '' })).filter(z => typeof z.p === 'number');
+    let status: 'OK' | 'NRS' = 'OK';
+    let prices = parsed.prices;
+    let links = parsed.links;
 
-    // 1) Drop advert price exactly 20
-    let filtered = zipped.filter(z => z.p !== 20);
-
-    // 2) GPT-bound filter: keep within [0.3x, 2.0x] of GPT estimate if present
-    const gpt = (item as any).gpt_value_aud as number | undefined;
-    if (typeof gpt === 'number' && isFinite(gpt) && gpt > 0) {
-      const lo = 0.3 * gpt;
-      const hi = 2.0 * gpt;
-      filtered = filtered.filter(z => z.p >= lo && z.p <= hi);
+    // Apply filters
+    const filtered: number[] = [];
+    const filteredLinks: string[] = [];
+    for (let i = 0; i < prices.length; i++) {
+      const p = prices[i];
+      const l = links[i];
+      if (p === 20) continue; // ignore $20 adverts
+      if (!withinGptBounds(p, item.gpt_value_aud)) continue; // GPT bound filter
+      filtered.push(p);
+      filteredLinks.push(l);
     }
 
-    // Take up to 10 after filtering (most recent first per _sop=13)
-    const prices = filtered.slice(0, 10).map(z => z.p);
-    const links = filtered.slice(0, 10).map(z => z.link);
+    if (parsed.noExactMatches || filtered.length === 0) status = 'NRS';
 
-    let status: 'OK'|'NRS' = 'OK';
-    if (parsed.noExactMatches || prices.length === 0) status = 'NRS';
+    // Limit to 10 valid items
+    prices = filtered.slice(0, 10);
+    links = filteredLinks.slice(0, 10);
 
     const med = median(prices);
-    console.log(`🔢 [${idx+1}/${total}] PricesFiltered(${prices.length}<=10): ${prices.join(', ')} | median=${med ?? 'null'}`);
+    console.log(`🔢 [${idx + 1}/${total}] PricesFiltered(${prices.length}<=10): ${prices.join(', ')} | median=${med ?? 'null'}`);
 
-    console.log(`🕷️ [${idx+1}/${total}] ACTIVE start "${query}"`);
+    // ACTIVE
+    console.log(`🕷️ [${idx + 1}/${total}] ACTIVE start "${query}"`);
     const actRes = await fetchWithTimeout(activeScrape, { cache: 'no-store', headers: { 'Accept-Language': 'en-AU,en;q=0.8' } }, 20000);
     const actHtml = await actRes.text();
     const ac = parseActiveCountHtml(actHtml);
@@ -56,7 +65,7 @@ async function processItem(item: VisionItem, idx: number, total: number): Promis
 
     const soldCount = parsed.totalCount ?? prices.length;
     const took = Date.now() - started;
-    console.log(`✅ [${idx+1}/${total}] Done "${query}" in ${took}ms`);
+    console.log(`✅ [${idx + 1}/${total}] Done "${query}" in ${took}ms`);
 
     return {
       title: query,
@@ -69,7 +78,7 @@ async function processItem(item: VisionItem, idx: number, total: number): Promis
       status,
     };
   } catch (e: any) {
-    console.error(`⚠️ [${idx+1}/${total}] Error "${query}":`, e?.message || e);
+    console.error(`⚠️ [${idx + 1}/${total}] Error "${query}":`, e?.message || e);
     return {
       title: query,
       sold_prices_aud: [],
@@ -91,26 +100,22 @@ export async function POST(req: Request) {
     console.log(`🕷️ Received ${total} items`);
     const MAX_ITEMS_PER_CALL = Number(process.env.SCRAPE_MAX_ITEMS_PER_CALL || 2);
     const sliceEnd = Math.min(total, MAX_ITEMS_PER_CALL);
-    const workItems = (body?.items || []).slice(0, sliceEnd);
-
-    if (!workItems.length) {
-      return NextResponse.json({ error: 'No items provided' }, { status: 400 });
-    }
+    const items = (body?.items || []).slice(0, sliceEnd);
 
     const batchSize = Number(process.env.SCRAPE_CONCURRENCY || 2);
     const delayMs = Number(process.env.SCRAPE_DELAY_MS || 300);
-
     const results: EbayResult[] = [];
-    for (let i = 0; i < workItems.length; i += batchSize) {
-      const slice = workItems.slice(i, i + batchSize);
-      const batch = await Promise.all(slice.map((it, j) => processItem(it, i + j, workItems.length)));
+
+    for (let i = 0; i < items.length; i += batchSize) {
+      const slice = items.slice(i, i + batchSize);
+      const batch = await Promise.all(slice.map((it, j) => processItem(it, i + j, items.length)));
       results.push(...batch);
-      if (i + batchSize < workItems.length) await sleep(delayMs);
+      if (i + batchSize < items.length) await sleep(delayMs);
     }
 
-    const partial = (total > workItems.length);
+    const partial = (total > items.length);
     const res = NextResponse.json(results);
-    if (partial) res.headers.set('x-sibi-next', String(workItems.length));
+    if (partial) res.headers.set('x-sibi-next', String(items.length));
     return res;
   } catch (err: any) {
     console.error('⚠️ fetch-ebay error:', err?.message || err);

@@ -41,7 +41,9 @@ export type ParsedSold = {
 };
 
 export function parseCurrencyToNumber(txt: string): number | null {
-  const m = txt.replace(',', '').replace(' ', ' ').match(/([0-9]+(?:\.[0-9]{1,2})?)/);
+  // Handles commas and non-breaking spaces
+  const cleaned = txt.replace(/,/g, '').replace(/\xa0/g, ' ').replace(/\s+/g, ' ').trim();
+  const m = cleaned.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
   return m ? Number(m[1]) : null;
 }
 
@@ -57,7 +59,6 @@ export function parseSoldHtml(html: string): ParsedSold {
     /We didn't find any results/i.test(pageText);
 
   $('li.s-item').each((_, el) => {
-    if (items.length >= 10) return;
     const priceTxt = $(el).find('.s-item__price').first().text().trim();
     const link = $(el).find('a.s-item__link').attr('href') || '';
     const price = parseCurrencyToNumber(priceTxt);
@@ -70,7 +71,6 @@ export function parseSoldHtml(html: string): ParsedSold {
   // Fallback selectors
   if (items.length === 0) {
     $('.srp-results .s-item__wrapper').each((_, el) => {
-      if (items.length >= 10) return;
       const priceTxt = $(el).find('.s-item__price').first().text().trim();
       const link = $(el).find('a').attr('href') || '';
       const price = parseCurrencyToNumber(priceTxt);
@@ -83,50 +83,43 @@ export function parseSoldHtml(html: string): ParsedSold {
 
   // Count (best-effort)
   let totalCount: number | null = null;
-  const countTxt = $('.srp-controls__count-heading .BOLD').first().text().replace(/[,\.]/g, '');
-  const n = Number(countTxt);
-  if (!Number.isNaN(n) && n > 0) totalCount = n;
+  // pattern: "1-48 of 2,345 results" or "2,345 results"
+  const header = $('.srp-controls__count-heading').text() || $('.srp-controls__count').text();
+  const m = header.replace(/[,\.]/g, '').match(/of\s+([0-9]+)/i) || header.replace(/[,\.]/g, '').match(/([0-9]+)\s+results/i);
+  if (m && m[1]) {
+    const n = Number(m[1].replace(/\s/g, ''));
+    if (!Number.isNaN(n) && n > 0) totalCount = n;
+  }
 
   return { prices: items, links, totalCount, noExactMatches: noExact };
 }
 
-
-export function extractResultsCountFromText(txt: string): number | null {
-  if (!txt) return null;
-  const clean = txt.replace(/[ ,.,,]/g, ' ').replace(/\s+/g,' ').trim();
-  // Prefer patterns like "1-48 of 2,345 results"
-  let m = clean.match(/of\s+([0-9]{1,3}(?:\s[0-9]{3})*)\s+results/i);
-  if (m && m[1]) {
-    const n = Number(m[1].replace(/\s/g, ''));
-    if (!Number.isNaN(n) && n > 0) return n;
-  }
-  // Fallback: "... 2345 results"
-  m = clean.match(/([0-9]{1,3}(?:\s[0-9]{3})*)\s+results/i);
-  if (m && m[1]) {
-    const n = Number(m[1].replace(/\s/g, ''));
-    if (!Number.isNaN(n) && n > 0) return n;
-  }
+export function extractResultsCountFromText(text: string): number | null {
+  if (!text) return null;
+  const cleaned = text.replace(/[,\.]/g, '');
+  let m = cleaned.match(/of\s+([0-9]+)\s+results/i);
+  if (m && m[1]) return Number(m[1]);
+  m = cleaned.match(/([0-9]+)\s+results/i);
+  if (m && m[1]) return Number(m[1]);
   return null;
 }
 
 export function parseActiveCountHtml(html: string): { count: number | null, method: string } {
   const $ = cheerio.load(html);
+  // Try various selectors/texts
   const candidates: string[] = [];
   candidates.push($('.srp-controls__count-heading').text());
   candidates.push($('.srp-controls__count').text());
-  candidates.push($('.srp-controls__count-heading [aria-live]').text());
-  // try nearby BOLD spans that often wrap the count
-  const boldSpan = $('.srp-controls__count-heading .BOLD').first().parent().text();
-  candidates.push(boldSpan);
-  // As a last resort, scan the first 2000 chars of body text
-  candidates.push($('body').text().slice(0, 2000));
+  candidates.push($('.srp-controls__count-heading .BOLD').first().text());
+  candidates.push($('.srp-controls__count .BOLD').first().text());
+  candidates.push($('body').text().slice(0, 4000));
 
   for (const c of candidates) {
     const n = extractResultsCountFromText(c);
     if (n) return { count: n, method: 'text-scan' };
   }
 
-  // Last-ditch: count visible items (page size), not a true total
+  // Fallback: count visible items
   const liCount = $('li.s-item').length;
   if (liCount > 0) return { count: liCount, method: 'li-count' };
 
@@ -139,13 +132,10 @@ export function average(nums: number[]): number | null {
   return Math.round((s / nums.length) * 100) / 100;
 }
 
-(nums: number[]): number | null {
+export function median(nums: number[]): number | null {
   if (!nums.length) return null;
   const a = nums.slice().sort((x, y) => x - y);
   const mid = Math.floor(a.length / 2);
-  if (a.length % 2 === 0) {
-    return Math.round(((a[mid - 1] + a[mid]) / 2) * 100) / 100;
-  } else {
-    return a[mid];
-  }
+  const m = (a.length % 2 === 0) ? ((a[mid - 1] + a[mid]) / 2) : a[mid];
+  return Math.round(m * 100) / 100;
 }
