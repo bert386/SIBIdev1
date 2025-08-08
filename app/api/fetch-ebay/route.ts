@@ -32,14 +32,9 @@ async function processItem(item: VisionItem, idx: number, total: number): Promis
   console.log(`🕷️ Fetching ACTIVE for "${query}"`);
   const actRes = await fetch(activeScrape, { cache: 'no-store', headers: { 'Accept-Language': 'en-AU,en;q=0.8' } });
   const actHtml = await actRes.text();
-  const activeCount = (() => {
-    const m = actHtml.replaceAll(',', '').match(/([0-9]+) results/ig);
-    if (m && m.length) {
-      const n = m[0].match(/([0-9]+)/);
-      if (n) return Number(n[1]);
-    }
-    return null;
-  })();
+  const ac = parseActiveCountHtml(actHtml);
+    const activeCount = ac.count;
+    console.log(`🔎 Active count method=${ac.method} value=${activeCount ?? 'null'}`);
 
   const soldCount = parsed.totalCount ?? prices.length;
 

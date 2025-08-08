@@ -90,6 +90,49 @@ export function parseSoldHtml(html: string): ParsedSold {
   return { prices: items, links, totalCount, noExactMatches: noExact };
 }
 
+
+export function extractResultsCountFromText(txt: string): number | null {
+  if (!txt) return null;
+  const clean = txt.replace(/[ ,.,,]/g, ' ').replace(/\s+/g,' ').trim();
+  // Prefer patterns like "1-48 of 2,345 results"
+  let m = clean.match(/of\s+([0-9]{1,3}(?:\s[0-9]{3})*)\s+results/i);
+  if (m && m[1]) {
+    const n = Number(m[1].replace(/\s/g, ''));
+    if (!Number.isNaN(n) && n > 0) return n;
+  }
+  // Fallback: "... 2345 results"
+  m = clean.match(/([0-9]{1,3}(?:\s[0-9]{3})*)\s+results/i);
+  if (m && m[1]) {
+    const n = Number(m[1].replace(/\s/g, ''));
+    if (!Number.isNaN(n) && n > 0) return n;
+  }
+  return null;
+}
+
+export function parseActiveCountHtml(html: string): { count: number | null, method: string } {
+  const $ = cheerio.load(html);
+  const candidates: string[] = [];
+  candidates.push($('.srp-controls__count-heading').text());
+  candidates.push($('.srp-controls__count').text());
+  candidates.push($('.srp-controls__count-heading [aria-live]').text());
+  // try nearby BOLD spans that often wrap the count
+  const boldSpan = $('.srp-controls__count-heading .BOLD').first().parent().text();
+  candidates.push(boldSpan);
+  // As a last resort, scan the first 2000 chars of body text
+  candidates.push($('body').text().slice(0, 2000));
+
+  for (const c of candidates) {
+    const n = extractResultsCountFromText(c);
+    if (n) return { count: n, method: 'text-scan' };
+  }
+
+  // Last-ditch: count visible items (page size), not a true total
+  const liCount = $('li.s-item').length;
+  if (liCount > 0) return { count: liCount, method: 'li-count' };
+
+  return { count: null, method: 'none' };
+}
+
 export function average(nums: number[]): number | null {
   if (!nums.length) return null;
   const s = nums.reduce((a, b) => a + b, 0);
