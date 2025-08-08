@@ -4,6 +4,16 @@ export type VisionItem = {
   category: 'game'|'dvd'|'vhs'|'book'|'comic'|'toy'|'diecast'|'other';
   year?: number | null;
   gpt_value_aud?: number | null;
+
+  // Optional item metadata (especially for LEGO and similar brands)
+  brand?: string | null;
+  theme?: string | null;
+  set_number?: string | null; // e.g., "10280"
+  official_name?: string | null; // e.g., "Flower Bouquet"
+  pieces?: number | null;
+  condition?: string | null; // e.g., "sealed","new","used"
+  quantity?: number | null;
+
   search: string;
 };
 

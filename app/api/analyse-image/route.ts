@@ -40,7 +40,13 @@ Identify each distinct item with keys:
 - search (string) — a concise query INCLUDING title, year, and platform when available, e.g. "Rayman Raving Rabbids (2006) Wii game".
 Also return lot_summary (1-2 sentences).
 Provide realistic, non-identical 'gpt_value_aud' per item (do not reuse the same value).
-Return ONLY valid JSON with keys: lot_summary, items (array of the above). Use integer dollars for gpt_value_aud (no cents).`;
+Return ONLY valid JSON with keys: lot_summary, items (array of the above). Use integer dollars for gpt_value_aud (no cents).
+
+Special brand rules:
+- If an item is LEGO, extract and include these extra keys when visible: brand='LEGO', theme (e.g., Creator, Botanicals, City, Star Wars), set_number (3–6 digits printed on the box), official_name (the set's official name), pieces (integer if visible), condition ('sealed'|'new'|'used' if obvious), quantity (count duplicates of the same set number).
+- For LEGO, set the search field to: "LEGO {set_number} {official_name}" whenever set_number is known. If the set number is unknown, use "LEGO {theme} {distinct words on box}".
+- Prefer specific, catalogue-like titles such as "LEGO 10280 Flower Bouquet" instead of "LEGO Botanical Collection - Flower Bouquet".
+`;
 
     console.log('🧠 Calling OpenAI for vision...');
     const completion = await getOpenAI().chat.completions.create({

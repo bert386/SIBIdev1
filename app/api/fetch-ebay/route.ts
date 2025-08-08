@@ -16,9 +16,22 @@ const OUTLIER_LOW = Number(process.env.SIBI_OUTLIER_LOW || 0.3);
 const OUTLIER_HIGH = Number(process.env.SIBI_OUTLIER_HIGH || 2.0);
 const ACTIVE_MODE = (process.env.SIBI_ACTIVE_MODE || 'all').toLowerCase(); // 'all' | 'none'
 
+
 function buildQuery(item: VisionItem) {
+  // Prefer LEGO set number when available for precise comps
+  const isLego = (item as any).brand?.toLowerCase?.() === 'lego' || /lego/i.test(item.title || '') || !!(item as any).set_number;
+  const setNum = (item as any).set_number as string | undefined;
+  const official = (item as any).official_name as string | undefined;
+  if (isLego && setNum) {
+    return `LEGO ${setNum} ${official ? official : ''}`.trim();
+  }
+  // fallback to provided search or constructed parts
   const parts = [item.title];
   if (item.year) parts.push(`(${item.year})`);
+  if (item.platform) parts.push(item.platform as string);
+  return (item.search || parts.join(' ')).trim();
+}
+)`);
   if (item.platform) parts.push(item.platform);
   return (item.search || parts.join(' ')).trim();
 }

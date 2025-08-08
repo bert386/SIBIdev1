@@ -5,10 +5,9 @@ import type { VisionResult, VisionItem, EbayResult } from '@/lib/types';
 type Props = {
   onVision: (v: VisionResult) => void;
   onEbay: (r: EbayResult[]) => void;
-  onFetchStart?: (total?: number) => void;
 };
 
-export default function UploadPanel({ onVision, onEbay, onFetchStart }: Props) {
+export default function UploadPanel({ onVision, onEbay }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [images, setImages] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
@@ -89,7 +88,6 @@ const getEbayBatched = async (items: VisionItem[]) => {
   if (!items?.length) return;
   setBusy(true); setProgress(0); setNote('');
   try {
-    if (typeof onFetchStart === 'function') onFetchStart(items.length);
     const groups = chunk(items, BATCH_SIZE);
     const all: EbayResult[] = [];
     for (let i = 0; i < groups.length; i++) {
