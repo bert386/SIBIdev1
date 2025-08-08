@@ -15,9 +15,20 @@ const OUTLIER_LOW = Number(process.env.SIBI_OUTLIER_LOW || 0.3);
 const OUTLIER_HIGH = Number(process.env.SIBI_OUTLIER_HIGH || 2.0);
 
 function buildQuery(item: VisionItem): string {
-  // Prefer LEGO set number when present
-  if ((item.brand || '').toLowerCase() === 'lego' && item.set_number) {
-    const name = item.official_name ? ` ${item.official_name}
+  // Prefer LEGO queries by set number when available
+  if (item.brand?.toLowerCase() === 'lego' && item.set_number) {
+    const name = item.official_name ? ` ${item.official_name}` : '';
+    return `LEGO ${item.set_number}${name}`.trim();
+  }
+
+  // Fallback: title (+ year / platform) or provided search
+  const parts: string[] = [];
+  if (item.title) parts.push(item.title);
+  if (item.year) parts.push(`(${item.year})`);
+  if (item.platform) parts.push(String(item.platform));
+  return (item.search || parts.join(' ')).trim();
+}
+
 
 function median(nums: number[]): number | null {
   if (!nums.length) return null;
@@ -56,7 +67,7 @@ function applyPriceFilters(rawPrices: number[], gpt?: number|null): {filtered:nu
   }
   const parts: string[] = [];
   if (item.title) parts.push(item.title);
-  if (item.year) parts.push(`(${item.year})`);
+  if (item.year) parts.push(`(${item.year})
   if (item.platform) parts.push(String(item.platform));
   return (item.search || parts.join(' ')).trim();
 }` : '';
@@ -64,7 +75,7 @@ function applyPriceFilters(rawPrices: number[], gpt?: number|null): {filtered:nu
   }
   const parts: string[] = [];
   if (item.title) parts.push(item.title);
-  if (item.year) parts.push(`(${item.year})`);
+  if (item.year) parts.push(`(${item.year})
   if (item.platform) parts.push(String(item.platform));
   return (item.search || parts.join(' ')).trim();
 }
@@ -92,7 +103,7 @@ async function processItem(item: VisionItem, idx: number, total: number): Promis
   const soldScrape = buildScraperUrl(soldUrl);
   const activeScrape = buildScraperUrl(activeUrl);
 
-  console.log(`🕷️ [${idx+1}/${total}] SOLD+ACTIVE start "${query}"`);
+  console.log(`🕷️ [${idx+1}/${total}] SOLD+ACTIVE start "${query}"
   try{
     const [soldRes, actRes] = await Promise.all([
       fetchWithRetry(soldScrape, { cache:'no-store', headers:{ 'Accept-Language':'en-AU,en;q=0.8' } }, SOLD_TIMEOUT, 1),
@@ -105,9 +116,8 @@ async function processItem(item: VisionItem, idx: number, total: number): Promis
     const { list: filtered, mode } = filterPrices(parsedSold.prices, item.gpt_value_aud ?? null);
     const med = median(filtered);
 
-    console.log(`🔢 [${idx+1}/${total}] PricesFiltered(m<=10): ${filtered.join(', ')} | median=${med ?? 'null'} | mode=${mode}`);
-    console.log(`🔎 Active count method=${activeInfo.method} value=${activeInfo.count ?? 'null'}`);
-
+    console.log(`🔢 [${idx+1}/${total}] PricesFiltered(m<=10): ${filtered.join(', ')} | median=${med ?? 'null'} | mode=${mode}
+    console.log(`🔎 Active count method=${activeInfo.method} value=${activeInfo.count ?? 'null'}
     const soldCount = parsedSold.totalCount ?? filtered.length;
     const status: 'OK'|'NRS' = (filtered.length>0 && med!=null) ? 'OK' : 'NRS';
 
