@@ -1,18 +1,10 @@
 export type VisionItem = {
   title: string;
   platform?: string | null;
-  category?: string | null;
+  category: 'game'|'dvd'|'vhs'|'book'|'comic'|'toy'|'diecast'|'other';
   year?: number | null;
   gpt_value_aud?: number | null;
-  search?: string | null;
-  // brand-specific fields
-  brand?: string | null;
-  theme?: string | null;
-  set_number?: string | null;         // LEGO
-  official_name?: string | null;      // LEGO / general
-  pieces?: number | null;
-  condition?: string | null;
-  quantity?: number | null;
+  search: string;
 };
 
 export type VisionResult = {
@@ -21,12 +13,15 @@ export type VisionResult = {
 };
 
 export type EbayResult = {
-  title: string;                 // query used
+  title: string;
   sold_prices_aud: number[];
   sold_links: string[];
-  avg_sold_aud: number | null;   // actually median
+  avg_sold_aud: number | null;
   sold_90d: number | null;
   available_now: number | null;
   sold_search_link: string;
-  status: 'OK' | 'NRS';
+  status: 'OK'|'NRS';
+  raw_sold_count?: number | null;
+  filtered_count?: number | null;
+  active_parse_method?: string | null;
 };
