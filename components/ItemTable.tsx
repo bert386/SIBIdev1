@@ -2,11 +2,10 @@
 import PricesModal from './PricesModal';
 import type { VisionResult, EbayResult } from '@/lib/types';
 
-export default function ItemTable({ vision, ebay, status }: { vision?: VisionResult, ebay?: EbayResult[], status: 'idle'|'analysing'|'fetching'|'done' }) {
+export default function ItemTable({ vision, ebay }: { vision?: VisionResult, ebay?: EbayResult[] }) {
   const vItems = vision?.items || [];
   const map = new Map<string, EbayResult>();
   (ebay||[]).forEach(e => map.set(e.title, e));
-  const done = status === 'done' && vItems.length > 0 && (ebay?.length === vItems.length);
 
   if (!vItems.length) return <div className="card"><div className="section-title">Item List</div><div>No data yet.</div></div>;
 
@@ -37,17 +36,17 @@ export default function ItemTable({ vision, ebay, status }: { vision?: VisionRes
                 <td>{it.year ?? '—'}</td>
                 <td>{it.platform ?? '—'}</td>
                 <td>{it.category}</td>
-                <td>{done ? (e?.available_now ?? '—') : '—'}</td>
-                <td>{done ? (e?.sold_90d ?? '—') : '—'}</td>
+                <td>{e?.available_now ?? '—'}</td>
+                <td>{e?.sold_90d ?? '—'}</td>
                 <td>{it.gpt_value_aud ?? '—'}</td>
-                <td>{done ? (e?.status === 'NRS' ? 'NRS' : (e?.avg_sold_aud ?? '—')) : '—'}</td>
+                <td>{e?.status === 'NRS' ? 'NRS' : (e?.avg_sold_aud ?? '—')}</td>
                 <td>
-                  {done && e?.sold_prices_aud?.length ? (
+                  {e?.sold_prices_aud?.length ? (
                     <>
                       <button className="btn secondary" onClick={()=> (window as any)[`open_${modalId}`]()}>eBay last solds</button>
                       <PricesModal id={modalId} title={it.title} prices={e.sold_prices_aud} links={e.sold_links} note={(e.raw_sold_count!=null && e.filtered_count!=null)?`Filtered ${e.filtered_count} of ${e.raw_sold_count}`:undefined} />
                     </>
-                  ) : (done && e?.sold_search_link ? <a className="btn secondary" href={e.sold_search_link} target="_blank">View</a> : null)}
+                  ) : (e?.sold_search_link ? <a className="btn secondary" href={e.sold_search_link} target="_blank">View</a> : null)}
                 </td>
               </tr>
             );
